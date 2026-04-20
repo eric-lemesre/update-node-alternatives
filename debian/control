@@ -1,0 +1,33 @@
+Source: update-node-alternative
+Section: devel
+Priority: optional
+Maintainer: Eric Lemesre <eric.lemesre@gmail.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.7.0
+Rules-Requires-Root: no
+Homepage: https://github.com/eric-lemesre/update-node-alternative
+Vcs-Git: https://github.com/eric-lemesre/update-node-alternative.git
+Vcs-Browser: https://github.com/eric-lemesre/update-node-alternative
+
+Package: update-node-alternative
+Architecture: all
+Multi-Arch: foreign
+Depends:
+ ${misc:Depends},
+ bash (>= 4.0),
+ dpkg (>= 1.15.4),
+ whiptail | dialog,
+ curl | wget,
+ ca-certificates,
+Recommends: git
+Description: manage system-wide Node.js versions via NVM and update-alternatives
+ update-node-alternative combines the NVM infrastructure (used to download
+ and store Node.js binaries under /usr/local/share/nvm/versions/node/) with
+ Debian's update-alternatives mechanism (used to switch the /usr/local/bin/
+ symlinks for node, npm, npx and corepack).
+ .
+ It is designed in the spirit of update-java-alternatives(8) and exposes an
+ interactive debconf-style frontend through whiptail, with a dialog or
+ plain readline fallback. The tool supports installing, removing, listing
+ (local and remote) Node.js versions, switching the active version, and
+ migrating npm global packages between versions.

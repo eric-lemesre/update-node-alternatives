@@ -1,0 +1,12 @@
+update-node-alternative (0.1.0) UNRELEASED; urgency=medium
+
+  * Initial release.
+    - Manage system-wide Node.js versions via NVM and update-alternatives.
+    - Interactive debconf-style frontend (whiptail/dialog) with readline
+      fallback via --no-dialog.
+    - Actions: --install, --remove, --list, --list-remote, --set, --auto,
+      --update, --packages, --upgrade, --reinstall-packages.
+    - Interactive migration of global npm packages between versions.
+    - Ships a manual page (update-node-alternative(8)).
+
+ -- Eric Lemesre <eric.lemesre@gmail.com>  Mon, 20 Apr 2026 12:00:00 +0200
