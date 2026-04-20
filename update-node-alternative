@@ -7,6 +7,9 @@
 # Interface interactive via whiptail (frontend debconf standard).
 #
 
+# Les fonctions do_* et dialog_* sont appelees dynamiquement (do_$action, etc.)
+# shellcheck disable=SC2329
+
 shopt -s dotglob
 
 prog=$(basename "$0")
@@ -73,7 +76,7 @@ from_version=
 to_version=
 lts_only=
 use_dialog=yes
-uaopts='--quiet'
+uaopts=(--quiet)
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -130,13 +133,13 @@ while [ "$#" -gt 0 ]; do
 	action=update;;
       -s|--set)
 	[ -z "$action" ] || usage 1
-	action=set
+	action="set"
 	shift
 	[ "$#" -gt 0 ] || usage 1
 	nodename=$1;;
       -v|--verbose)
 	verbose=yes
-	uaopts="${uaopts/--quiet/}";;
+	uaopts=();;
       -h|-\?|--help)
 	usage 0;;
       -*)
@@ -166,15 +169,13 @@ if [ -n "$use_dialog" ]; then
 fi
 
 # Taille du terminal pour les dialogues
+# Remplit les variables globales DIALOG_ROWS et DIALOG_COLS
 dialog_size()
 {
-    local rows cols
-    rows=$(tput lines 2>/dev/null || echo 24)
-    cols=$(tput cols 2>/dev/null || echo 80)
-    # Limiter pour ne pas deborder
-    [ "$rows" -gt 40 ] && rows=40
-    [ "$cols" -gt 100 ] && cols=100
-    echo "$rows" "$cols"
+    DIALOG_ROWS=$(tput lines 2>/dev/null || echo 24)
+    DIALOG_COLS=$(tput cols 2>/dev/null || echo 80)
+    [ "$DIALOG_ROWS" -gt 40 ] && DIALOG_ROWS=40
+    [ "$DIALOG_COLS" -gt 100 ] && DIALOG_COLS=100
 }
 
 # Question oui/non via debconf
@@ -184,9 +185,8 @@ dialog_yesno()
 {
     local title="$1" text="$2"
     if [ -n "$DIALOG_BIN" ]; then
-        local size
-        size=($(dialog_size))
-        "$DIALOG_BIN" --title "$title" --yesno "$text" "${size[0]}" "${size[1]}"
+        dialog_size
+        "$DIALOG_BIN" --title "$title" --yesno "$text" "$DIALOG_ROWS" "$DIALOG_COLS"
         return $?
     else
         # Fallback readline
@@ -206,23 +206,22 @@ dialog_checklist()
     shift 2
 
     if [ -n "$DIALOG_BIN" ]; then
-        local size
-        size=($(dialog_size))
-        local list_height=$(( ${size[0]} - 8 ))
+        dialog_size
+        local list_height=$(( DIALOG_ROWS - 8 ))
         [ "$list_height" -gt 20 ] && list_height=20
 
         local result
         if [ "$DIALOG_BIN" = "whiptail" ]; then
             result=$("$DIALOG_BIN" --title "$title" --checklist "$text" \
-                "${size[0]}" "${size[1]}" "$list_height" "$@" 3>&1 1>&2 2>&3)
+                "$DIALOG_ROWS" "$DIALOG_COLS" "$list_height" "$@" 3>&1 1>&2 2>&3)
         else
             result=$("$DIALOG_BIN" --title "$title" --checklist "$text" \
-                "${size[0]}" "${size[1]}" "$list_height" "$@" 2>&1 1>/dev/tty)
+                "$DIALOG_ROWS" "$DIALOG_COLS" "$list_height" "$@" 2>&1 1>/dev/tty)
         fi
         local rc=$?
         # Nettoyer les guillemets de la sortie whiptail
         echo "$result" | tr -d '"'
-        return $rc
+        return "$rc"
     else
         # Fallback readline
         echo >&2 "$title"
@@ -274,22 +273,21 @@ dialog_menu()
     shift 2
 
     if [ -n "$DIALOG_BIN" ]; then
-        local size
-        size=($(dialog_size))
-        local list_height=$(( ${size[0]} - 8 ))
+        dialog_size
+        local list_height=$(( DIALOG_ROWS - 8 ))
         [ "$list_height" -gt 15 ] && list_height=15
 
         local result
         if [ "$DIALOG_BIN" = "whiptail" ]; then
             result=$("$DIALOG_BIN" --title "$title" --menu "$text" \
-                "${size[0]}" "${size[1]}" "$list_height" "$@" 3>&1 1>&2 2>&3)
+                "$DIALOG_ROWS" "$DIALOG_COLS" "$list_height" "$@" 3>&1 1>&2 2>&3)
         else
             result=$("$DIALOG_BIN" --title "$title" --menu "$text" \
-                "${size[0]}" "${size[1]}" "$list_height" "$@" 2>&1 1>/dev/tty)
+                "$DIALOG_ROWS" "$DIALOG_COLS" "$list_height" "$@" 2>&1 1>/dev/tty)
         fi
         local rc=$?
         echo "$result"
-        return $rc
+        return "$rc"
     else
         # Fallback readline
         echo >&2 "$title"
@@ -320,9 +318,8 @@ dialog_msgbox()
 {
     local title="$1" text="$2"
     if [ -n "$DIALOG_BIN" ]; then
-        local size
-        size=($(dialog_size))
-        "$DIALOG_BIN" --title "$title" --msgbox "$text" "${size[0]}" "${size[1]}"
+        dialog_size
+        "$DIALOG_BIN" --title "$title" --msgbox "$text" "$DIALOG_ROWS" "$DIALOG_COLS"
     else
         echo "$title"
         echo "$text"
@@ -377,10 +374,20 @@ resolve_local()
     if [[ -z "$resolved" || "$resolved" == "N/A" ]]; then
         echo >&2 "$prog: version '$input' non installee localement"
         echo >&2 "  Versions disponibles:"
-        ls "$top" 2>/dev/null | sed 's/^/    /' >&2
+        list_installed_versions | sed 's/^/    /' >&2
         exit 1
     fi
     echo "$resolved"
+}
+
+# Lister les versions installees (un par ligne), sans utiliser ls (SC2012)
+list_installed_versions()
+{
+    local d
+    for d in "$top"/v*/; do
+        [ -d "$d" ] || continue
+        basename "$d"
+    done
 }
 
 # Lister les paquets globaux d'une version
@@ -420,9 +427,10 @@ collect_global_packages()
         [ -d "$scope_dir" ] || continue
         for pkg_dir in "$scope_dir"*/; do
             [ -d "$pkg_dir" ] || continue
-            local scope
+            local scope base name
             scope=$(basename "$(dirname "$pkg_dir")")
-            local name="$scope/$(basename "$pkg_dir")"
+            base=$(basename "$pkg_dir")
+            name="$scope/$base"
             local ver="" desc=""
             if [ -f "$pkg_dir/package.json" ]; then
                 ver=$(grep -m1 '"version"' "$pkg_dir/package.json" | grep -oP '[\d.]+' | head -1)
@@ -604,10 +612,10 @@ do_upgrade()
     echo "[2/3] Activation de $installed..."
     do_update
     local NODEBIN_DIR="$top/${installed}/bin"
-    update-alternatives $uaopts --set node "$NODEBIN_DIR/node"
+    update-alternatives "${uaopts[@]}" --set node "$NODEBIN_DIR/node"
 
-    echo "  node: $($ALTBIN_DIR/node --version 2>/dev/null)"
-    echo "  npm:  $($ALTBIN_DIR/npm --version 2>/dev/null)"
+    echo "  node: $("$ALTBIN_DIR/node" --version 2>/dev/null)"
+    echo "  npm:  $("$ALTBIN_DIR/npm" --version 2>/dev/null)"
     echo
 
     # 3. Migration des paquets globaux
@@ -705,7 +713,7 @@ do_update()
 
         vecho "  -> $node_version (priorite: $priority)"
 
-        local cmd=(update-alternatives $uaopts --install
+        local cmd=(update-alternatives "${uaopts[@]}" --install
             "$ALTBIN_DIR/node" node "$NODEBIN_DIR/node" "$priority")
 
         for slave_bin in "${CORE_BINARIES[@]}"; do
@@ -743,7 +751,7 @@ do_set()
     if [ ! -x "$NODEBIN_DIR/node" ]; then
         echo >&2 "$prog: version $version introuvable dans $top"
         echo >&2 "  Versions disponibles:"
-        ls "$top" 2>/dev/null | sed 's/^/    /' >&2
+        list_installed_versions | sed 's/^/    /' >&2
         exit 1
     fi
 
@@ -756,11 +764,11 @@ do_set()
     fi
 
     vecho "Basculement vers $version..."
-    update-alternatives $uaopts --set node "$NODEBIN_DIR/node"
+    update-alternatives "${uaopts[@]}" --set node "$NODEBIN_DIR/node"
 
     echo "Node.js system-wide defini sur $version (mode manuel)"
-    echo "  node: $($ALTBIN_DIR/node --version 2>/dev/null)"
-    echo "  npm:  $($ALTBIN_DIR/npm --version 2>/dev/null)"
+    echo "  node: $("$ALTBIN_DIR/node" --version 2>/dev/null)"
+    echo "  npm:  $("$ALTBIN_DIR/npm" --version 2>/dev/null)"
 
     # Proposer la migration des paquets globaux si changement de version
     if [ -n "$old_version" ] && [ "$old_version" != "$version" ]; then
@@ -772,7 +780,7 @@ do_auto()
 {
     do_update
 
-    update-alternatives $uaopts --auto node
+    update-alternatives "${uaopts[@]}" --auto node
     echo "Node.js alternatives en mode automatique (plus haute priorite active)"
 
     local current
@@ -865,9 +873,12 @@ fi
 
 # Charger les binaires precedemment enregistres
 if [ -f "$node_info" ]; then
-    for binary in $(grep -e "^Binaries" "$node_info" | cut -d= -f2); do
-        OLD_BIN[$binary]=1
-    done
+    while IFS='=' read -r key value; do
+        [ "$key" = "Binaries" ] || continue
+        for binary in $value; do
+            OLD_BIN[$binary]=1
+        done
+    done < "$node_info"
 fi
 
 [ -z "$verbose" ] || do_show_setting

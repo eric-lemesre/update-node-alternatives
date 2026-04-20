@@ -55,7 +55,10 @@ fi
 echo "[4/4] Migration des versions existantes..."
 if [ -d "$USER_NVM/versions/node" ] && [ -n "$(ls -A "$USER_NVM/versions/node" 2>/dev/null)" ]; then
     echo "  Versions trouvees dans $USER_NVM/versions/node:"
-    ls "$USER_NVM/versions/node" | sed 's/^/    /'
+    for d in "$USER_NVM/versions/node"/*/; do
+        [ -d "$d" ] || continue
+        printf '    %s\n' "$(basename "$d")"
+    done
     echo
     read -rp "  Copier ces versions dans $NVM_DIR/versions/node ? [o/N] " answer
     if [[ "$answer" =~ ^[oOyY] ]]; then
