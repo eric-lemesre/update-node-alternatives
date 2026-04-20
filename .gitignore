@@ -1,0 +1,12 @@
+# Debian build artifacts
+debian/.debhelper/
+debian/debhelper-build-stamp
+debian/files
+debian/*.substvars
+debian/*.debhelper.log
+debian/update-node-alternative/
+
+# Build output (placed one directory up by dpkg-buildpackage)
+../*.deb
+../*.buildinfo
+../*.changes

@@ -1,0 +1,214 @@
+.TH UPDATE-NODE-ALTERNATIVE 8 "2026-04-20" "update-node-alternative" "System Administration"
+.SH NAME
+update-node-alternative \- manage system-wide Node.js versions via NVM and update-alternatives
+.SH SYNOPSIS
+.B update-node-alternative
+.RI [ options ]
+.I action
+.RI [ arguments ]
+.SH DESCRIPTION
+.B update-node-alternative
+manages multiple Node.js versions installed system-wide. It combines the
+.BR nvm (1)
+infrastructure (to download and store Node.js binaries under
+.IR /usr/local/share/nvm/versions/node/ )
+with Debian's
+.BR update-alternatives (1)
+mechanism (to switch the
+.IR /usr/local/bin/node ,
+.IR npm ,
+.IR npx
+and
+.IR corepack
+symlinks).
+.PP
+It is designed in the spirit of
+.BR update-java-alternatives (8)
+and exposes an interactive
+.BR debconf (7)-style
+frontend through
+.BR whiptail (1)
+(with a
+.BR dialog (1)
+or plain readline fallback).
+.PP
+Priority for
+.BR update-alternatives (1)
+is computed from the Node.js version: \fImajor * 100 + minor\fR (e.g. v22.14.0 → 2214).
+When running in
+.B auto
+mode, the highest priority version wins.
+.SH ACTIONS
+Exactly one action must be provided.
+.SS NVM actions
+.TP
+.BR \-i ", " \-\-install " " \fIversion\fR
+Download the requested Node.js version through NVM and register it with
+.BR update-alternatives (1).
+.I version
+may be a number
+.RI ( 22 ),
+a full version
+.RI ( v22.14.0 )
+or an alias
+.RI ( lts/jod ", " lts/* ).
+.TP
+.BR \-r ", " \-\-remove " " \fIversion\fR
+Remove an installed Node.js version. Deregisters it from
+.BR update-alternatives (1)
+and asks NVM to delete the files. Prompts for confirmation if the version
+is currently active.
+.TP
+.BR \-R ", " \-\-list\-remote " [" \-\-lts ]
+List versions available for download. With
+.B \-\-lts
+only Long Term Support releases are shown.
+.TP
+.BR \-p ", " \-\-packages " " \fIversion\fR
+List npm global packages installed for
+.IR version
+(read from the
+.I lib/node_modules
+directory of that version).
+.BR npm
+and
+.BR corepack
+are excluded from the list.
+.TP
+.BR \-\-upgrade " " \fIversion\fR " [" \-\-from " " \fIprevious\fR ]
+Install
+.IR version ,
+make it the active alternative and offer to migrate the previously installed
+global packages onto it. If
+.B \-\-from
+is omitted the currently active version is used as source.
+.TP
+.BR \-\-reinstall\-packages " " \-\-from " " \fIsrc\fR " " \-\-to " " \fIdst\fR
+Migrate global npm packages from
+.I src
+to
+.I dst
+without installing a new Node.js version. Both versions must already be
+installed locally.
+.SS update-alternatives actions
+.TP
+.BR \-l ", " \-\-list
+List the Node.js versions installed under
+.I /usr/local/share/nvm/versions/node/
+together with their computed priority and the current alternative.
+.TP
+.BR \-s ", " \-\-set " " \fInodename\fR
+Switch the node alternative to
+.I nodename
+(exact directory name, e.g.
+.IR v22.14.0 )
+in manual mode. When the active version changes, a checklist is shown to
+migrate the previous version's global packages.
+.TP
+.BR \-u ", " \-\-update
+Re-register every installed Node.js version with
+.BR update-alternatives (1).
+Useful after manually copying a version into
+.IR /usr/local/share/nvm/versions/node/ .
+.TP
+.BR \-a ", " \-\-auto
+Switch the node alternative back to automatic mode (highest priority wins).
+.SH OPTIONS
+.TP
+.BR \-v ", " \-\-verbose
+Be verbose about what is happening.
+.TP
+.B \-\-no\-dialog
+Disable the
+.BR whiptail (1) / dialog (1)
+frontend and use a plain readline-based prompt instead. Useful over SSH
+sessions without TTY colour support or in scripts.
+.TP
+.B \-\-lts
+When combined with
+.BR \-\-list\-remote ,
+only show Long Term Support releases.
+.TP
+.BR \-h ", " \-? ", " \-\-help
+Show a short usage summary and exit.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+Invalid arguments, missing privileges, unknown version, NVM or
+.BR update-alternatives (1)
+failure.
+.SH FILES
+.TP
+.I /usr/local/share/nvm/
+System-wide NVM installation (provided by
+.IR install\-node\-alternative.sh ).
+.TP
+.I /usr/local/share/nvm/nvm.sh
+NVM shell library sourced by the script.
+.TP
+.I /usr/local/share/nvm/versions/node/
+Installed Node.js versions (one directory per version).
+.TP
+.I /usr/local/share/nvm/versions/node_binaries.info
+State file listing binaries currently registered as alternatives.
+.TP
+.I /usr/local/bin/node
+.TQ
+.I /usr/local/bin/npm
+.TQ
+.I /usr/local/bin/npx
+.TQ
+.I /usr/local/bin/corepack
+Symlinks managed by
+.BR update-alternatives (1)
+(node is the master, the rest are slaves).
+.SH PRIVILEGES
+The
+.BR \-\-list ", " \-\-list\-remote " and " \-\-packages
+actions can be run as a regular user. Every other action modifies system
+state (NVM store or
+.BR update-alternatives (1)
+database) and must be run as root, typically via
+.BR sudo (8).
+.SH EXAMPLES
+Install the latest Node.js 22 and register it:
+.PP
+.RS 4
+sudo update-node-alternative \-\-install 22
+.RE
+.PP
+List available LTS releases:
+.PP
+.RS 4
+update-node-alternative \-\-list\-remote \-\-lts
+.RE
+.PP
+Upgrade from v20.18.1 to the latest v22, migrating global packages:
+.PP
+.RS 4
+sudo update-node-alternative \-\-upgrade 22 \-\-from v20.18.1
+.RE
+.PP
+Switch the active version without touching anything else:
+.PP
+.RS 4
+sudo update-node-alternative \-\-set v22.14.0
+.RE
+.PP
+Return to automatic mode (highest priority wins):
+.PP
+.RS 4
+sudo update-node-alternative \-\-auto
+.RE
+.SH SEE ALSO
+.BR update-alternatives (1),
+.BR update-java-alternatives (8),
+.BR nvm (1),
+.BR whiptail (1),
+.BR dialog (1),
+.BR npm (1)
+.SH AUTHOR
+Eric Lemesre <eric.lemesre@gmail.com>
