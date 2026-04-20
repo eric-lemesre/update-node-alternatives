@@ -1,0 +1,4 @@
+# bash_completion is sourced, not executed directly. Upstream ships it with
+# a shebang for convenience but not executable, so lintian flags it. This is
+# the intended behaviour.
+update-node-alternative: script-not-executable [usr/share/update-node-alternative/nvm/bash_completion]
