@@ -1,0 +1,876 @@
+#!/bin/bash
+#
+# update-node-alternative - Gestion system-wide de Node.js via NVM + update-alternatives
+#
+# Utilise l'infrastructure NVM (versions installees dans /usr/local/share/nvm/versions/node/)
+# et le systeme update-alternatives de Debian pour le basculement.
+# Interface interactive via whiptail (frontend debconf standard).
+#
+
+shopt -s dotglob
+
+prog=$(basename "$0")
+
+readonly NVM_DIR="/usr/local/share/nvm"
+readonly top="${NVM_DIR}/versions/node"
+readonly ALTBIN_DIR="/usr/local/bin"
+readonly node_info="$NVM_DIR/versions/node_binaries.info"
+
+# Binaires garantis dans toute installation Node.js (utilises comme slaves)
+readonly CORE_BINARIES=(npm npx corepack)
+
+declare -A NEW_BIN
+declare -A OLD_BIN
+
+verbose=
+
+usage()
+{
+    rv=$1
+    cat >&2 <<-EOF
+	usage: $prog [-v|--verbose] <action> [options]
+
+	Actions (NVM):
+	  -i, --install <version>            Installer une version Node.js
+	  -r, --remove <version>             Supprimer une version installee
+	  -R, --list-remote [--lts]          Lister les versions disponibles au telechargement
+	  -p, --packages <version>           Lister les paquets globaux d'une version
+	  --upgrade <version> [--from <ver>] Installer, activer et migrer les paquets
+	  --reinstall-packages --from <ver> --to <ver>
+	                                     Migrer les paquets globaux entre deux versions
+
+	Actions (alternatives):
+	  -l, --list                         Lister les versions installees localement
+	  -s, --set <nodename>               Definir la version active (mode manuel)
+	  -u, --update                       Re-enregistrer toutes les versions dans alternatives
+	  -a, --auto                         Basculer en mode automatique (plus haute priorite)
+
+	Options:
+	  -v, --verbose                      Affichage detaille
+	  --no-dialog                        Desactiver whiptail (mode readline)
+	  -h, -?, --help                     Afficher cette aide
+
+	<version> : numero de version (22, 20, v22.14.0, lts/jod, lts/*, etc.)
+	<nodename> : repertoire exact de version (v22.14.0, v20.18.1)
+
+	Exemples:
+	  sudo $prog --install 22                      # Installer la derniere Node 22
+	  sudo $prog --install lts/jod                 # Installer une LTS par nom
+	  $prog --list-remote --lts                    # Voir les LTS disponibles
+	  $prog --packages v22.14.0                    # Paquets globaux de Node 22
+	  sudo $prog --set v22.14.0                    # Basculer sur Node 22.14.0
+	  sudo $prog --upgrade 22 --from v20.18.1     # Upgrade 20->22 + migration paquets
+	  sudo $prog --remove v20.18.1                 # Supprimer Node 20
+	  sudo $prog --reinstall-packages --from v20.18.1 --to v22.14.0
+	  sudo $prog --auto                            # Mode auto (plus haute priorite)
+	EOF
+    exit "$rv"
+}
+
+action=
+nodename=
+from_version=
+to_version=
+lts_only=
+use_dialog=yes
+uaopts='--quiet'
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -i|--install)
+	[ -z "$action" ] || usage 1
+	action=install
+	shift
+	[ "$#" -gt 0 ] || usage 1
+	nodename=$1;;
+      -r|--remove)
+	[ -z "$action" ] || usage 1
+	action=remove
+	shift
+	[ "$#" -gt 0 ] || usage 1
+	nodename=$1;;
+      -R|--list-remote)
+	[ -z "$action" ] || usage 1
+	action=list_remote;;
+      -p|--packages)
+	[ -z "$action" ] || usage 1
+	action=packages
+	shift
+	[ "$#" -gt 0 ] || usage 1
+	nodename=$1;;
+      --upgrade)
+	[ -z "$action" ] || usage 1
+	action=upgrade
+	shift
+	[ "$#" -gt 0 ] || usage 1
+	nodename=$1;;
+      --reinstall-packages)
+	[ -z "$action" ] || usage 1
+	action=reinstall_packages;;
+      --from)
+	shift
+	[ "$#" -gt 0 ] || usage 1
+	from_version=$1;;
+      --to)
+	shift
+	[ "$#" -gt 0 ] || usage 1
+	to_version=$1;;
+      --lts)
+	lts_only=yes;;
+      --no-dialog)
+	use_dialog=;;
+      -a|--auto)
+	[ -z "$action" ] || usage 1
+	action=auto;;
+      -l|--list)
+	[ -z "$action" ] || usage 1
+	action=list;;
+      -u|--update)
+	[ -z "$action" ] || usage 1
+	action=update;;
+      -s|--set)
+	[ -z "$action" ] || usage 1
+	action=set
+	shift
+	[ "$#" -gt 0 ] || usage 1
+	nodename=$1;;
+      -v|--verbose)
+	verbose=yes
+	uaopts="${uaopts/--quiet/}";;
+      -h|-\?|--help)
+	usage 0;;
+      -*)
+	echo >&2 "$prog: option inconnue: $1"
+	usage 1;;
+      *)
+	break;;
+    esac
+    shift
+done
+
+[ "$#" -eq 0 ] || usage 1
+[ -n "$action" ] || usage 1
+
+# ---------------------------------------------------------------------------
+# Interface debconf (whiptail/dialog)
+# ---------------------------------------------------------------------------
+
+# Detecter le frontend dialog disponible
+DIALOG_BIN=""
+if [ -n "$use_dialog" ]; then
+    if command -v whiptail &>/dev/null; then
+        DIALOG_BIN="whiptail"
+    elif command -v dialog &>/dev/null; then
+        DIALOG_BIN="dialog"
+    fi
+fi
+
+# Taille du terminal pour les dialogues
+dialog_size()
+{
+    local rows cols
+    rows=$(tput lines 2>/dev/null || echo 24)
+    cols=$(tput cols 2>/dev/null || echo 80)
+    # Limiter pour ne pas deborder
+    [ "$rows" -gt 40 ] && rows=40
+    [ "$cols" -gt 100 ] && cols=100
+    echo "$rows" "$cols"
+}
+
+# Question oui/non via debconf
+# Usage: dialog_yesno "titre" "texte"
+# Retour: 0=oui, 1=non
+dialog_yesno()
+{
+    local title="$1" text="$2"
+    if [ -n "$DIALOG_BIN" ]; then
+        local size
+        size=($(dialog_size))
+        "$DIALOG_BIN" --title "$title" --yesno "$text" "${size[0]}" "${size[1]}"
+        return $?
+    else
+        # Fallback readline
+        local answer
+        read -rp "$text [o/N]: " answer
+        [[ "$answer" =~ ^[oOyY] ]]
+        return $?
+    fi
+}
+
+# Checklist interactive (selection multiple)
+# Usage: dialog_checklist "titre" "texte" item1 desc1 on/off item2 desc2 on/off ...
+# Retour: items selectionnes sur stdout (separes par espaces)
+dialog_checklist()
+{
+    local title="$1" text="$2"
+    shift 2
+
+    if [ -n "$DIALOG_BIN" ]; then
+        local size
+        size=($(dialog_size))
+        local list_height=$(( ${size[0]} - 8 ))
+        [ "$list_height" -gt 20 ] && list_height=20
+
+        local result
+        if [ "$DIALOG_BIN" = "whiptail" ]; then
+            result=$("$DIALOG_BIN" --title "$title" --checklist "$text" \
+                "${size[0]}" "${size[1]}" "$list_height" "$@" 3>&1 1>&2 2>&3)
+        else
+            result=$("$DIALOG_BIN" --title "$title" --checklist "$text" \
+                "${size[0]}" "${size[1]}" "$list_height" "$@" 2>&1 1>/dev/tty)
+        fi
+        local rc=$?
+        # Nettoyer les guillemets de la sortie whiptail
+        echo "$result" | tr -d '"'
+        return $rc
+    else
+        # Fallback readline
+        echo >&2 "$title"
+        echo >&2 "$text"
+        echo >&2
+        local i=0
+        local items=()
+        while [ "$#" -ge 3 ]; do
+            local tag="$1" desc="$2" state="$3"
+            shift 3
+            i=$((i + 1))
+            local mark=" "
+            [ "$state" = "ON" ] && mark="*"
+            printf >&2 "  [%s] %d) %-30s %s\n" "$mark" "$i" "$tag" "$desc"
+            items+=("$tag")
+        done
+        echo >&2
+        echo >&2 "Entrez les numeros a selectionner (espace pour separer), 'a' pour tout, 'n' pour rien:"
+        local selections
+        read -rp "> " selections
+        case "$selections" in
+            [aA]|[aA]ll)
+                echo "${items[*]}"
+                return 0 ;;
+            [nN]|"")
+                return 1 ;;
+            *)
+                local selected=()
+                for sel in $selections; do
+                    if [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -ge 1 ] && [ "$sel" -le "${#items[@]}" ]; then
+                        selected+=("${items[$((sel - 1))]}")
+                    fi
+                done
+                if [ ${#selected[@]} -gt 0 ]; then
+                    echo "${selected[*]}"
+                    return 0
+                fi
+                return 1 ;;
+        esac
+    fi
+}
+
+# Menu (selection unique)
+# Usage: dialog_menu "titre" "texte" tag1 desc1 tag2 desc2 ...
+# Retour: tag selectionne sur stdout
+dialog_menu()
+{
+    local title="$1" text="$2"
+    shift 2
+
+    if [ -n "$DIALOG_BIN" ]; then
+        local size
+        size=($(dialog_size))
+        local list_height=$(( ${size[0]} - 8 ))
+        [ "$list_height" -gt 15 ] && list_height=15
+
+        local result
+        if [ "$DIALOG_BIN" = "whiptail" ]; then
+            result=$("$DIALOG_BIN" --title "$title" --menu "$text" \
+                "${size[0]}" "${size[1]}" "$list_height" "$@" 3>&1 1>&2 2>&3)
+        else
+            result=$("$DIALOG_BIN" --title "$title" --menu "$text" \
+                "${size[0]}" "${size[1]}" "$list_height" "$@" 2>&1 1>/dev/tty)
+        fi
+        local rc=$?
+        echo "$result"
+        return $rc
+    else
+        # Fallback readline
+        echo >&2 "$title"
+        echo >&2 "$text"
+        echo >&2
+        local i=0
+        local tags=()
+        while [ "$#" -ge 2 ]; do
+            local tag="$1" desc="$2"
+            shift 2
+            i=$((i + 1))
+            printf >&2 "  %d) %-20s %s\n" "$i" "$tag" "$desc"
+            tags+=("$tag")
+        done
+        echo >&2
+        local sel
+        read -rp "Choix (1-$i): " sel
+        if [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -ge 1 ] && [ "$sel" -le "${#tags[@]}" ]; then
+            echo "${tags[$((sel - 1))]}"
+            return 0
+        fi
+        return 1
+    fi
+}
+
+# Message d'information
+dialog_msgbox()
+{
+    local title="$1" text="$2"
+    if [ -n "$DIALOG_BIN" ]; then
+        local size
+        size=($(dialog_size))
+        "$DIALOG_BIN" --title "$title" --msgbox "$text" "${size[0]}" "${size[1]}"
+    else
+        echo "$title"
+        echo "$text"
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+vecho()
+{
+    [ -z "$verbose" ] || echo >&2 "$@"
+}
+
+# Charger NVM dans le contexte du script
+load_nvm()
+{
+    export NVM_DIR
+    [[ -s "$NVM_DIR/nvm.sh" ]] || {
+        echo >&2 "$prog: NVM non installe dans $NVM_DIR"
+        echo >&2 "  Executez d'abord: sudo ./install-node-alternative.sh"
+        exit 1
+    }
+    # shellcheck source=/dev/null
+    . "$NVM_DIR/nvm.sh" --no-use
+}
+
+# Calcul de priorite a partir du numero de version
+# v22.14.0 -> 2214, v20.18.1 -> 2018, v24.5.0 -> 2405
+calc_priority()
+{
+    local ver="${1#v}"
+    local major minor
+    IFS='.' read -r major minor _ <<< "$ver"
+    echo $(( major * 100 + minor ))
+}
+
+# Resout un alias NVM (22, lts/jod, etc.) vers la version exacte installee localement
+resolve_local()
+{
+    local input="$1"
+    # Si c'est deja un vX.Y.Z exact et present
+    if [[ "$input" == v* ]] && [ -d "$top/$input" ]; then
+        echo "$input"
+        return
+    fi
+    # Sinon, demander a NVM
+    load_nvm
+    local resolved
+    resolved=$(nvm version "$input" 2>/dev/null)
+    if [[ -z "$resolved" || "$resolved" == "N/A" ]]; then
+        echo >&2 "$prog: version '$input' non installee localement"
+        echo >&2 "  Versions disponibles:"
+        ls "$top" 2>/dev/null | sed 's/^/    /' >&2
+        exit 1
+    fi
+    echo "$resolved"
+}
+
+# Lister les paquets globaux d'une version
+# Usage: collect_global_packages <version>
+# Remplit les tableaux: pkg_names[], pkg_versions[], pkg_descriptions[]
+collect_global_packages()
+{
+    local version="$1"
+    local modules_dir="$top/$version/lib/node_modules"
+
+    pkg_names=()
+    pkg_versions=()
+    pkg_descriptions=()
+
+    [ -d "$modules_dir" ] || return
+
+    # Paquets non-scoped
+    for pkg_dir in "$modules_dir"/*/; do
+        [ -d "$pkg_dir" ] || continue
+        local name
+        name=$(basename "$pkg_dir")
+        case "$name" in
+            npm|corepack) continue ;;
+        esac
+        local ver="" desc=""
+        if [ -f "$pkg_dir/package.json" ]; then
+            ver=$(grep -m1 '"version"' "$pkg_dir/package.json" | grep -oP '[\d.]+' | head -1)
+            desc=$(grep -m1 '"description"' "$pkg_dir/package.json" | sed 's/.*"description"[[:space:]]*:[[:space:]]*"\(.*\)".*/\1/' | head -c 50)
+        fi
+        pkg_names+=("$name")
+        pkg_versions+=("$ver")
+        pkg_descriptions+=("$desc")
+    done
+
+    # Paquets scoped (@org/pkg)
+    for scope_dir in "$modules_dir"/@*/; do
+        [ -d "$scope_dir" ] || continue
+        for pkg_dir in "$scope_dir"*/; do
+            [ -d "$pkg_dir" ] || continue
+            local scope
+            scope=$(basename "$(dirname "$pkg_dir")")
+            local name="$scope/$(basename "$pkg_dir")"
+            local ver="" desc=""
+            if [ -f "$pkg_dir/package.json" ]; then
+                ver=$(grep -m1 '"version"' "$pkg_dir/package.json" | grep -oP '[\d.]+' | head -1)
+                desc=$(grep -m1 '"description"' "$pkg_dir/package.json" | sed 's/.*"description"[[:space:]]*:[[:space:]]*"\(.*\)".*/\1/' | head -c 50)
+            fi
+            pkg_names+=("$name")
+            pkg_versions+=("$ver")
+            pkg_descriptions+=("$desc")
+        done
+    done
+}
+
+do_show_setting()
+{
+    printf "%-20s %s\n" "NVM_DIR" "$NVM_DIR"
+    printf "%-20s %s\n" "top" "$top"
+    printf "%-20s %s\n" "node_info" "$node_info"
+    printf "%-20s %s\n" "nodename" "${nodename:-<non defini>}"
+    printf "%-20s %s\n" "from_version" "${from_version:-<non defini>}"
+    printf "%-20s %s\n" "to_version" "${to_version:-<non defini>}"
+    printf "%-20s %s\n" "DIALOG_BIN" "${DIALOG_BIN:-<aucun, mode readline>}"
+}
+
+# ---------------------------------------------------------------------------
+# Actions NVM
+# ---------------------------------------------------------------------------
+
+do_install()
+{
+    [ -n "$nodename" ] || { echo >&2 "$prog: version requise"; usage 1; }
+
+    load_nvm
+
+    echo ":: Telechargement et installation de Node.js '$nodename' via NVM..."
+    if ! nvm install "$nodename"; then
+        echo >&2 "$prog: echec de l'installation de '$nodename'"
+        exit 1
+    fi
+
+    # Recuperer la version exacte installee
+    local installed
+    installed=$(nvm version "$nodename" 2>/dev/null)
+    if [[ -z "$installed" || "$installed" == "N/A" ]]; then
+        echo >&2 "$prog: impossible de determiner la version installee"
+        exit 1
+    fi
+
+    echo ":: Enregistrement de $installed dans update-alternatives..."
+    do_update
+
+    echo
+    echo ":: Installation terminee: $installed"
+    echo "   Pour activer: sudo $prog --set $installed"
+    echo "   Pour auto:    sudo $prog --auto"
+}
+
+do_remove()
+{
+    [ -n "$nodename" ] || { echo >&2 "$prog: version requise"; usage 1; }
+
+    local version
+    version=$(resolve_local "$nodename")
+
+    # Verifier que ce n'est pas la version active
+    local current_bin
+    current_bin=$(update-alternatives --query node 2>/dev/null | grep '^Value:' | cut -d' ' -f2)
+    if [[ "$current_bin" == *"$version"* ]]; then
+        if ! dialog_yesno "Suppression de la version active" \
+            "$version est actuellement la version active du systeme.\n\nContinuer la suppression ?"; then
+            echo "Annule."
+            exit 0
+        fi
+    fi
+
+    echo ":: Desenregistrement de $version des alternatives..."
+    local node_bin="$top/$version/bin/node"
+    update-alternatives --remove node "$node_bin" 2>/dev/null || true
+
+    echo ":: Suppression de $version via NVM..."
+    load_nvm
+    nvm uninstall "$version"
+
+    echo ":: $version supprime"
+
+    # Re-enregistrer si il reste des versions
+    if [ -n "$(ls -A "$top" 2>/dev/null)" ]; then
+        echo ":: Mise a jour des alternatives restantes..."
+        do_update
+    else
+        echo "  Plus aucune version installee."
+        update-alternatives --remove-all node 2>/dev/null || true
+    fi
+}
+
+do_list_remote()
+{
+    load_nvm
+
+    if [ -n "$lts_only" ]; then
+        echo "Versions LTS disponibles au telechargement:"
+        echo
+        nvm ls-remote --lts
+    else
+        echo "Versions disponibles au telechargement (30 dernieres):"
+        echo
+        nvm ls-remote | tail -30
+        echo
+        echo "  (utilisez --lts pour filtrer les LTS uniquement)"
+    fi
+}
+
+do_packages()
+{
+    [ -n "$nodename" ] || { echo >&2 "$prog: version requise"; usage 1; }
+
+    local version
+    version=$(resolve_local "$nodename")
+    local modules_dir="$top/$version/lib/node_modules"
+
+    collect_global_packages "$version"
+
+    if [ ${#pkg_names[@]} -eq 0 ]; then
+        echo "Aucun paquet global installe pour $version"
+        echo "  (module_dir: $modules_dir)"
+        return
+    fi
+
+    echo "Paquets globaux installes pour $version:"
+    echo
+    printf "  %-30s %-12s %s\n" "PAQUET" "VERSION" "DESCRIPTION"
+    printf "  %-30s %-12s %s\n" "------" "-------" "-----------"
+
+    local i
+    for i in "${!pkg_names[@]}"; do
+        printf "  %-30s %-12s %s\n" \
+            "${pkg_names[$i]}" \
+            "${pkg_versions[$i]}" \
+            "${pkg_descriptions[$i]}"
+    done
+
+    echo
+    echo "Total: ${#pkg_names[@]} paquet(s)"
+}
+
+do_upgrade()
+{
+    [ -n "$nodename" ] || { echo >&2 "$prog: version cible requise"; usage 1; }
+
+    # Detecter la version source
+    if [ -z "$from_version" ]; then
+        local current_bin
+        current_bin=$(update-alternatives --query node 2>/dev/null | grep '^Value:' | cut -d' ' -f2)
+        if [ -n "$current_bin" ]; then
+            from_version=$(echo "$current_bin" | grep -oP 'v[\d.]+')
+        fi
+    fi
+
+    if [ -z "$from_version" ]; then
+        echo >&2 "$prog: impossible de determiner la version source"
+        echo >&2 "  Specifiez --from <version> ou activez une version d'abord"
+        exit 1
+    fi
+
+    echo ":: Upgrade: $from_version -> $nodename"
+    echo
+
+    # 1. Installer la nouvelle version
+    load_nvm
+    echo "[1/3] Installation de Node.js '$nodename'..."
+    if ! nvm install "$nodename"; then
+        echo >&2 "$prog: echec de l'installation"
+        exit 1
+    fi
+
+    local installed
+    installed=$(nvm version "$nodename" 2>/dev/null)
+
+    # 2. Enregistrer et activer
+    echo "[2/3] Activation de $installed..."
+    do_update
+    local NODEBIN_DIR="$top/${installed}/bin"
+    update-alternatives $uaopts --set node "$NODEBIN_DIR/node"
+
+    echo "  node: $($ALTBIN_DIR/node --version 2>/dev/null)"
+    echo "  npm:  $($ALTBIN_DIR/npm --version 2>/dev/null)"
+    echo
+
+    # 3. Migration des paquets globaux
+    echo "[3/3] Migration des paquets globaux..."
+    migrate_global_packages "$from_version" "$installed"
+
+    echo
+    echo ":: Upgrade termine: $from_version -> $installed"
+}
+
+do_reinstall_packages()
+{
+    if [ -z "$from_version" ] || [ -z "$to_version" ]; then
+        echo >&2 "$prog: --from et --to requis"
+        echo >&2 "  usage: $prog --reinstall-packages --from v20.18.1 --to v22.14.0"
+        exit 1
+    fi
+
+    local src
+    src=$(resolve_local "$from_version")
+    local dst
+    dst=$(resolve_local "$to_version")
+
+    echo ":: Migration des paquets globaux: $src -> $dst"
+    migrate_global_packages "$src" "$dst"
+}
+
+# ---------------------------------------------------------------------------
+# Actions alternatives
+# ---------------------------------------------------------------------------
+
+do_list()
+{
+    vecho "Versions Node.js installees dans $top:"
+    echo
+    printf "  %-16s %-10s %s\n" "VERSION" "PRIORITE" "CHEMIN"
+    printf "  %-16s %-10s %s\n" "-------" "--------" "------"
+
+    if [ ! -d "$top" ] || [ -z "$(ls -A "$top" 2>/dev/null)" ]; then
+        echo "  (aucune version installee)"
+        return
+    fi
+
+    for node_dir in "$top"/v*/; do
+        [ -d "$node_dir" ] || continue
+        local node_version
+        node_version=$(basename "$node_dir")
+        local priority
+        priority=$(calc_priority "$node_version")
+        printf "  %-16s %-10s %s\n" "$node_version" "$priority" "$top/$node_version"
+    done
+
+    echo
+    echo "Alternative active:"
+    local current
+    current=$(update-alternatives --query node 2>/dev/null | grep '^Value:' | cut -d' ' -f2)
+    if [ -n "$current" ]; then
+        local active_ver
+        active_ver=$(echo "$current" | grep -oP 'v[\d.]+')
+        local mode
+        mode=$(update-alternatives --query node 2>/dev/null | grep '^Status:' | cut -d' ' -f2)
+        printf "  %s  (mode: %s)\n" "$active_ver" "$mode"
+    else
+        echo "  (aucune alternative configuree)"
+    fi
+}
+
+do_update()
+{
+    vecho "Suppression des anciennes alternatives..."
+    for binary in "${!OLD_BIN[@]}"; do
+        update-alternatives --remove-all "$binary" 2>/dev/null || true
+    done
+    update-alternatives --remove-all node 2>/dev/null || true
+
+    vecho "Enregistrement de toutes les versions installees..."
+    if [ ! -d "$top" ] || [ -z "$(ls -A "$top" 2>/dev/null)" ]; then
+        echo >&2 "$prog: aucune version node dans $top"
+        echo >&2 "  Installez avec: sudo $prog --install <version>"
+        exit 1
+    fi
+
+    NEW_BIN=()
+    NEW_BIN[node]=1
+
+    for node_dir in "$top"/v*/; do
+        [ -d "$node_dir" ] || continue
+        local node_version
+        node_version=$(basename "$node_dir")
+        local priority
+        priority=$(calc_priority "$node_version")
+        local NODEBIN_DIR="$top/${node_version}/bin"
+
+        [ -x "$NODEBIN_DIR/node" ] || continue
+
+        vecho "  -> $node_version (priorite: $priority)"
+
+        local cmd=(update-alternatives $uaopts --install
+            "$ALTBIN_DIR/node" node "$NODEBIN_DIR/node" "$priority")
+
+        for slave_bin in "${CORE_BINARIES[@]}"; do
+            if [ -x "$NODEBIN_DIR/$slave_bin" ]; then
+                cmd+=(--slave "$ALTBIN_DIR/$slave_bin" "$slave_bin" "$NODEBIN_DIR/$slave_bin")
+                NEW_BIN[$slave_bin]=1
+            fi
+        done
+
+        "${cmd[@]}"
+    done
+
+    vecho "Binaries=${!NEW_BIN[*]}"
+    echo "Binaries=${!NEW_BIN[*]}" > "$node_info"
+
+    echo "Alternatives mises a jour. Versions enregistrees:"
+    update-alternatives --list node 2>/dev/null | while read -r path; do
+        local v
+        v=$(echo "$path" | grep -oP 'v[\d.]+')
+        echo "  $v -> $path"
+    done
+}
+
+do_set()
+{
+    [ -n "$nodename" ] || { echo >&2 "$prog: nodename requis"; usage 1; }
+
+    # S'assurer que les alternatives sont a jour
+    do_update
+
+    local version
+    version=$(resolve_local "$nodename")
+
+    local NODEBIN_DIR="$top/${version}/bin"
+    if [ ! -x "$NODEBIN_DIR/node" ]; then
+        echo >&2 "$prog: version $version introuvable dans $top"
+        echo >&2 "  Versions disponibles:"
+        ls "$top" 2>/dev/null | sed 's/^/    /' >&2
+        exit 1
+    fi
+
+    # Detecter la version precedente pour migration des paquets globaux
+    local old_node_bin
+    old_node_bin=$(update-alternatives --query node 2>/dev/null | grep '^Value:' | cut -d' ' -f2)
+    local old_version=""
+    if [ -n "$old_node_bin" ] && [ -x "$old_node_bin" ]; then
+        old_version=$(echo "$old_node_bin" | grep -oP 'v[\d.]+')
+    fi
+
+    vecho "Basculement vers $version..."
+    update-alternatives $uaopts --set node "$NODEBIN_DIR/node"
+
+    echo "Node.js system-wide defini sur $version (mode manuel)"
+    echo "  node: $($ALTBIN_DIR/node --version 2>/dev/null)"
+    echo "  npm:  $($ALTBIN_DIR/npm --version 2>/dev/null)"
+
+    # Proposer la migration des paquets globaux si changement de version
+    if [ -n "$old_version" ] && [ "$old_version" != "$version" ]; then
+        migrate_global_packages "$old_version" "$version"
+    fi
+}
+
+do_auto()
+{
+    do_update
+
+    update-alternatives $uaopts --auto node
+    echo "Node.js alternatives en mode automatique (plus haute priorite active)"
+
+    local current
+    current=$(update-alternatives --query node 2>/dev/null | grep '^Value:' | cut -d' ' -f2)
+    if [ -n "$current" ]; then
+        local v
+        v=$(echo "$current" | grep -oP 'v[\d.]+')
+        echo "  -> version active: $v"
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# Migration des paquets globaux (interface debconf/whiptail)
+# ---------------------------------------------------------------------------
+
+migrate_global_packages()
+{
+    local from_version="$1"
+    local to_version="$2"
+    local to_bin="$top/$to_version/bin"
+
+    collect_global_packages "$from_version"
+
+    if [ ${#pkg_names[@]} -eq 0 ]; then
+        vecho "Aucun paquet global a migrer depuis $from_version"
+        return
+    fi
+
+    # Construire les arguments pour le checklist
+    # Format: tag description on/off
+    local checklist_args=()
+    local i
+    for i in "${!pkg_names[@]}"; do
+        local tag="${pkg_names[$i]}"
+        local desc="${pkg_names[$i]}@${pkg_versions[$i]}"
+        if [ -n "${pkg_descriptions[$i]}" ]; then
+            desc="$desc - ${pkg_descriptions[$i]}"
+        fi
+        checklist_args+=("$tag" "$desc" "ON")
+    done
+
+    echo
+    local selected
+    if selected=$(dialog_checklist \
+        "Migration des paquets globaux" \
+        "Selectionnez les paquets a migrer de $from_version vers $to_version:" \
+        "${checklist_args[@]}"); then
+
+        if [ -z "$selected" ]; then
+            echo "  -> Migration ignoree (aucune selection)"
+            return
+        fi
+
+        # Convertir la selection en tableau
+        local to_install=()
+        read -ra to_install <<< "$selected"
+
+        if [ ${#to_install[@]} -eq 0 ]; then
+            echo "  -> Migration ignoree"
+            return
+        fi
+
+        echo ":: Installation de ${#to_install[@]} paquet(s) dans $to_version..."
+        vecho "  Paquets: ${to_install[*]}"
+
+        if "$to_bin/npm" install -g "${to_install[@]}"; then
+            echo "  -> ${#to_install[@]} paquet(s) migre(s) avec succes"
+        else
+            echo >&2 "  -> ERREUR lors de l'installation de certains paquets"
+            exit 1
+        fi
+    else
+        echo "  -> Migration annulee"
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+# Actions ne necessitant pas root
+readonly NO_ROOT_ACTIONS="list list_remote packages"
+
+if ! echo "$NO_ROOT_ACTIONS" | grep -qw "$action"; then
+    if [ "$(id -u)" -ne 0 ]; then
+        echo >&2 "$prog: droits root requis (utilisez sudo)"
+        exit 1
+    fi
+fi
+
+# Charger les binaires precedemment enregistres
+if [ -f "$node_info" ]; then
+    for binary in $(grep -e "^Binaries" "$node_info" | cut -d= -f2); do
+        OLD_BIN[$binary]=1
+    done
+fi
+
+[ -z "$verbose" ] || do_show_setting
+do_$action
+
+exit 0
