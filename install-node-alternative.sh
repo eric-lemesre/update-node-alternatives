@@ -5,6 +5,9 @@
 #
 # Usage: sudo ./install-node-alternative.sh
 #
+# Copyright (C) 2026 Eric Lemesre <eric.lemesre@gmail.com>
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
 
 set -euo pipefail
 
