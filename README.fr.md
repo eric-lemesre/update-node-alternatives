@@ -1,0 +1,140 @@
+# update-node-alternative
+
+**Français** | [English](README.md)
+
+Un gestionnaire de versions Node.js system-wide pour Debian, dans l'esprit de
+[`update-java-alternatives(8)`](https://manpages.debian.org/update-java-alternatives).
+
+Il combine l'infrastructure [NVM](https://github.com/nvm-sh/nvm)
+(téléchargement et stockage des binaires Node.js) avec le mécanisme
+[`update-alternatives(1)`](https://manpages.debian.org/update-alternatives)
+de Debian (bascule des liens `/usr/local/bin/{node,npm,npx,corepack}`).
+L'interface interactive utilise `whiptail` (avec un repli sur `dialog` ou
+sur readline classique).
+
+## Fonctionnalités
+
+- Installer, supprimer et lister les versions Node.js via NVM
+- Basculer la version active system-wide avec `update-alternatives` (mode manuel ou automatique)
+- `node` est le lien maître ; `npm`, `npx`, `corepack` sont esclaves
+- Priorité calculée automatiquement depuis la version : `majeur * 100 + mineur`
+  (ex. `v22.14.0` → `2214`)
+- Migration interactive des paquets npm globaux entre versions (checklist)
+- Mode non-interactif / scriptable via `--no-dialog`
+
+## Démarrage rapide
+
+```bash
+# Construire et installer (depuis les sources)
+make install        # installe script + man page sous $PREFIX (par défaut /usr/local)
+sudo ./install-node-alternative.sh   # prépare /usr/local/share/nvm (nécessite NVM per-user)
+
+# Installer la dernière Node 22 et l'enregistrer
+sudo update-node-alternative --install 22
+
+# Basculer dessus
+sudo update-node-alternative --set v22.14.0
+
+# Vérifier
+update-node-alternative --list
+```
+
+Pour un vrai paquet Debian :
+
+```bash
+dpkg-buildpackage -us -uc -b
+sudo dpkg -i ../update-node-alternative_*.deb
+```
+
+## Utilisation
+
+```
+usage: update-node-alternative [-v|--verbose] <action> [options]
+
+Actions NVM :
+  -i, --install <version>            Installer une version Node.js
+  -r, --remove <version>             Supprimer une version installée
+  -R, --list-remote [--lts]          Lister les versions disponibles au téléchargement
+  -p, --packages <version>           Lister les paquets npm globaux d'une version
+  --upgrade <version> [--from <ver>] Installer, activer et migrer les paquets
+  --reinstall-packages --from <ver> --to <ver>
+                                     Migrer les paquets globaux entre deux versions
+
+Actions alternatives :
+  -l, --list                         Lister les versions installées
+  -s, --set <nodename>               Définir la version active (mode manuel)
+  -u, --update                       Ré-enregistrer toutes les versions
+  -a, --auto                         Basculer en mode automatique (plus haute priorité)
+
+Options :
+  -v, --verbose                      Affichage détaillé
+  --no-dialog                        Désactiver whiptail (mode readline)
+  -h, --help                         Afficher l'aide
+```
+
+Voir [`update-node-alternative(8)`](update-node-alternative.8) pour le manuel complet.
+
+## Exemples
+
+```bash
+# Installer la dernière LTS par alias
+sudo update-node-alternative --install lts/jod
+
+# Lister les LTS disponibles au téléchargement
+update-node-alternative --list-remote --lts
+
+# Voir les paquets globaux d'une version installée
+update-node-alternative --packages v22.14.0
+
+# Upgrader de v20 vers v22 avec migration interactive des paquets
+sudo update-node-alternative --upgrade 22 --from v20.18.1
+
+# Migrer les paquets globaux entre deux versions déjà installées
+sudo update-node-alternative --reinstall-packages --from v20.18.1 --to v22.14.0
+
+# Passer en mode auto (plus haute priorité active)
+sudo update-node-alternative --auto
+```
+
+## Arborescence
+
+```
+/usr/local/share/nvm/                 # NVM system-wide
+  nvm.sh, nvm-exec
+  versions/node/vX.Y.Z/               # versions Node.js installées
+  versions/node_binaries.info         # fichier d'état
+/usr/local/sbin/update-node-alternative
+/usr/local/bin/{node,npm,npx,corepack}   # liens gérés par update-alternatives
+/usr/local/share/man/man8/update-node-alternative.8
+```
+
+## Dépendances
+
+- `bash` ≥ 4.0 (tableaux associatifs)
+- `whiptail` **ou** `dialog` (optionnel — repli sur readline)
+- `curl` **ou** `wget` (utilisé par NVM pour télécharger Node.js)
+- `update-alternatives` (fourni par `dpkg`)
+- Une installation NVM existante pour exécuter `install-node-alternative.sh`
+  (pour amorcer le NVM system-wide depuis le NVM per-user)
+
+## Build & développement
+
+```bash
+make help           # lister les cibles disponibles
+make check          # lancer shellcheck
+make install        # installer dans $PREFIX (par défaut /usr/local)
+make uninstall      # supprimer les fichiers installés
+make man            # afficher la man page
+
+# Packaging Debian
+dpkg-buildpackage -us -uc -b
+lintian ../update-node-alternative_*.changes
+```
+
+## Licence
+
+GPL-2.0-or-later — voir [LICENSE](LICENSE).
+
+## Auteur
+
+Eric Lemesre <eric.lemesre@gmail.com>
