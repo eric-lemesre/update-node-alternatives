@@ -344,16 +344,42 @@ vecho()
 }
 
 # Charger NVM dans le contexte du script
+# NVM_DIR = ou sont stockes les versions + le cache (/usr/local/share/nvm)
+# nvm.sh est cherche en priorite dans le paquet, puis en vendor (exec depuis source),
+# puis dans NVM_DIR pour compatibilite avec l'ancien install-node-alternative.sh.
 load_nvm()
 {
     export NVM_DIR
-    [[ -s "$NVM_DIR/nvm.sh" ]] || {
-        echo >&2 "$prog: NVM non installe dans $NVM_DIR"
-        echo >&2 "  Executez d'abord: sudo ./install-node-alternative.sh"
+    mkdir -p "$NVM_DIR/versions/node" "$NVM_DIR/alias" "$NVM_DIR/.cache" 2>/dev/null || true
+
+    local script_dir nvm_lib=""
+    script_dir=$(dirname "$(readlink -f "$0")")
+    local candidates=(
+        "/usr/share/update-node-alternative/nvm/nvm.sh"
+        "$script_dir/vendor/nvm/nvm.sh"
+        "$NVM_DIR/nvm.sh"
+    )
+    local c
+    for c in "${candidates[@]}"; do
+        if [ -s "$c" ]; then
+            nvm_lib="$c"
+            break
+        fi
+    done
+
+    if [ -z "$nvm_lib" ]; then
+        echo >&2 "$prog: nvm.sh introuvable"
+        echo >&2 "  Cherche dans:"
+        for c in "${candidates[@]}"; do
+            echo >&2 "    $c"
+        done
+        echo >&2 "  Reinstallez le paquet (apt install update-node-alternative)"
+        echo >&2 "  ou copiez un nvm.sh dans l'un de ces chemins."
         exit 1
-    }
+    fi
+
     # shellcheck source=/dev/null
-    . "$NVM_DIR/nvm.sh" --no-use
+    . "$nvm_lib" --no-use
 }
 
 # Calcul de priorite a partir du numero de version
