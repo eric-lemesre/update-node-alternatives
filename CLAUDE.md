@@ -36,7 +36,7 @@ install-node-alternative.sh      # Script d'installation de l'infrastructure
 - `--install <version>` — Télécharge via NVM + enregistre dans alternatives
 - `--remove <version>` — Supprime (alternatives + fichiers NVM)
 - `--list-remote [--lts]` — Versions disponibles au téléchargement
-- `--packages <version>` — Liste les paquets npm globaux d'une version
+- `--list-packages <version>` — Liste les paquets npm globaux d'une version
 - `--upgrade <version> [--from <ver>]` — Install + set + migration paquets
 - `--reinstall-packages --from <ver> --to <ver>` — Migration seule des paquets
 

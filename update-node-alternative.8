@@ -77,7 +77,7 @@ List versions available for download. With
 .B \-\-lts
 only Long Term Support releases are shown.
 .TP
-.BR \-p ", " \-\-packages " " \fIversion\fR
+.BR \-p ", " \-\-list\-packages " " \fIversion\fR
 List npm global packages installed for
 .IR version
 (read from the
@@ -189,7 +189,7 @@ Symlinks managed by
 (node is the master, the rest are slaves).
 .SH PRIVILEGES
 The
-.BR \-\-list ", " \-\-list\-remote " and " \-\-packages
+.BR \-\-list ", " \-\-list\-remote " and " \-\-list\-packages
 actions can be run as a regular user. Every other action modifies system
 state (NVM store or
 .BR update-alternatives (1)

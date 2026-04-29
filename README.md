@@ -57,7 +57,7 @@ NVM actions:
   -i, --install <version>            Install a Node.js version
   -r, --remove <version>             Remove an installed version
   -R, --list-remote [--lts]          List versions available for download
-  -p, --packages <version>           List global npm packages of a version
+  -p, --list-packages <version>      List global npm packages of a version
   --upgrade <version> [--from <ver>] Install, activate and migrate packages
   --reinstall-packages --from <ver> --to <ver>
                                      Migrate global packages between versions
@@ -88,7 +88,7 @@ sudo update-node-alternative --install lts/jod
 update-node-alternative --list-remote --lts
 
 # Show global packages of an installed version
-update-node-alternative --packages v22.14.0
+update-node-alternative --list-packages v22.14.0
 
 # Upgrade from v20 to v22 with interactive package migration
 sudo update-node-alternative --upgrade 22 --from v20.18.1

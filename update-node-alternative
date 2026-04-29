@@ -45,7 +45,7 @@ usage()
 	  -i, --install <version>            Installer une version Node.js
 	  -r, --remove <version>             Supprimer une version installee
 	  -R, --list-remote [--lts]          Lister les versions disponibles au telechargement
-	  -p, --packages <version>           Lister les paquets globaux d'une version
+	  -p, --list-packages <version>      Lister les paquets globaux d'une version
 	  --upgrade <version> [--from <ver>] Installer, activer et migrer les paquets
 	  --reinstall-packages --from <ver> --to <ver>
 	                                     Migrer les paquets globaux entre deux versions
@@ -75,7 +75,7 @@ usage()
 	  sudo $prog --install 22                      # Installer la derniere Node 22
 	  sudo $prog --install lts/jod                 # Installer une LTS par nom
 	  $prog --list-remote --lts                    # Voir les LTS disponibles
-	  $prog --packages v22.14.0                    # Paquets globaux de Node 22
+	  $prog --list-packages v22.14.0               # Paquets globaux de Node 22
 	  sudo $prog --set v22.14.0                    # Basculer sur Node 22.14.0
 	  sudo $prog --upgrade 22 --from v20.18.1     # Upgrade 20->22 + migration paquets
 	  sudo $prog --remove v20.18.1                 # Supprimer Node 20
@@ -110,9 +110,9 @@ while [ "$#" -gt 0 ]; do
       -R|--list-remote)
 	[ -z "$action" ] || usage 1
 	action=list_remote;;
-      -p|--packages)
+      -p|--list-packages)
 	[ -z "$action" ] || usage 1
-	action=packages
+	action=list_packages
 	shift
 	[ "$#" -gt 0 ] || usage 1
 	nodename=$1;;
@@ -727,7 +727,7 @@ do_list_remote()
     fi
 }
 
-do_packages()
+do_list_packages()
 {
     [ -n "$nodename" ] || { echo >&2 "$prog: version requise"; usage 1; }
 
@@ -1047,7 +1047,7 @@ migrate_global_packages()
 # ---------------------------------------------------------------------------
 
 # Actions ne necessitant pas root
-readonly NO_ROOT_ACTIONS="list list_remote packages"
+readonly NO_ROOT_ACTIONS="list list_remote list_packages"
 
 if ! echo "$NO_ROOT_ACTIONS" | grep -qw "$action"; then
     if [ "$(id -u)" -ne 0 ]; then
