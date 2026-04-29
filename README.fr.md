@@ -28,8 +28,7 @@ sur readline classique).
 
 ```bash
 # Construire et installer (depuis les sources)
-make install        # installe script + man page sous $PREFIX (par défaut /usr/local)
-sudo ./install-node-alternative.sh   # prépare /usr/local/share/nvm (nécessite NVM per-user)
+sudo make install   # installe le script + la man page + le nvm embarqué sous $PREFIX (défaut /usr/local)
 
 # Installer la dernière Node 22 et l'enregistrer
 sudo update-node-alternative --install 22
@@ -118,17 +117,27 @@ sudo update-node-alternative --auto
 - `whiptail` **ou** `dialog` (optionnel — repli sur readline)
 - `curl` **ou** `wget` (utilisé par NVM pour télécharger Node.js)
 - `update-alternatives` (fourni par `dpkg`)
-- Une installation NVM existante pour exécuter `install-node-alternative.sh`
-  (pour amorcer le NVM system-wide depuis le NVM per-user)
 
 ## Build & développement
 
 ```bash
 make help           # lister les cibles disponibles
 make check          # lancer shellcheck
-make install        # installer dans $PREFIX (par défaut /usr/local)
-make uninstall      # supprimer les fichiers installés
+sudo make install   # installer dans $PREFIX (par défaut /usr/local)
+sudo make uninstall # supprimer les fichiers installés
+sudo make purge     # uninstall + retire les alternatives + /usr/local/share/nvm/
 make man            # afficher la man page
+```
+
+### Migrer depuis un nvm utilisateur
+
+Si vous utilisiez `~/.nvm`, copiez les versions Node.js installées dans le
+stockage système puis ré-enregistrez-les auprès de `update-alternatives` :
+
+```bash
+sudo mkdir -p /usr/local/share/nvm/versions/node
+sudo cp -a ~/.nvm/versions/node/* /usr/local/share/nvm/versions/node/
+sudo update-node-alternative --update
 ```
 
 ### Packaging Debian

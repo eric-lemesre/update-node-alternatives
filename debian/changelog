@@ -16,5 +16,9 @@ update-node-alternative (0.1.0) UNRELEASED; urgency=medium
       whiptail/dialog and readline ones. Adds --frontend NAME to force
       a specific backend; --no-dialog is now an alias of
       --frontend=readline. zenity and kdialog are listed under Suggests.
+    - Drop the obsolete install-node-alternative.sh helper. Replaced by
+      `make install` (script + man + vendored nvm) and a new `make purge`
+      target for the manual install path. Per-user nvm migration is
+      documented in the README.
 
  -- Eric Lemesre <eric.lemesre@gmail.com>  Wed, 29 Apr 2026 12:06:38 +0200

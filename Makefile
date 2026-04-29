@@ -13,7 +13,6 @@ INSTALL_DATA   ?= $(INSTALL) -m 0644
 INSTALL_DIR    ?= $(INSTALL) -d -m 0755
 
 SCRIPT     = update-node-alternative
-INSTALLER  = install-node-alternative.sh
 MANPAGE    = update-node-alternative.8
 
 NVM_FILES  = vendor/nvm/nvm.sh vendor/nvm/bash_completion vendor/nvm/LICENSE.md vendor/nvm/VERSION
@@ -21,15 +20,15 @@ NVM_EXEC   = vendor/nvm/nvm-exec
 
 SHELLCHECK ?= shellcheck
 
-.PHONY: all help install install-nvm uninstall check man clean deb deb-clean check-upstream vendor-nvm vendor-nvm-show
+.PHONY: all help install uninstall purge check man clean deb deb-clean check-upstream vendor-nvm vendor-nvm-show
 
 all: help
 
 help:
 	@echo "Targets:"
 	@echo "  make install       Install script + man page (honors DESTDIR, PREFIX)"
-	@echo "  make install-nvm   Run install-node-alternative.sh (needs root)"
 	@echo "  make uninstall     Remove installed script + man page"
+	@echo "  make purge         uninstall + drop alternatives + /usr/local/share/nvm/"
 	@echo "  make check         Run shellcheck on shell scripts"
 	@echo "  make man           Show the man page"
 	@echo "  make clean         Remove generated artifacts"
@@ -50,23 +49,38 @@ install:
 	$(INSTALL_DATA) $(NVM_FILES) $(DESTDIR)$(NVMDIR)/
 	$(INSTALL_PROG) $(NVM_EXEC)  $(DESTDIR)$(NVMDIR)/nvm-exec
 
-install-nvm:
-	@if [ "$$(id -u)" -ne 0 ]; then \
-	    echo "install-nvm: root privileges required (use sudo)"; exit 1; \
-	fi
-	./$(INSTALLER)
-
 uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/$(SCRIPT)
 	rm -f $(DESTDIR)$(MANDIR)/$(MANPAGE)
 	rm -rf $(DESTDIR)$(NVMDIR)
 	rmdir --ignore-fail-on-non-empty $(DESTDIR)$(PKGDIR) 2>/dev/null || true
 
+# Full removal: also drop update-alternatives entries and the
+# /usr/local/share/nvm/ store (every installed Node.js version).
+# Intended for the manual install path; the Debian package uses
+# `apt purge` plus the appropriate maintainer scripts instead.
+purge:
+	@if [ "$$(id -u)" -ne 0 ]; then \
+	    echo "purge: root privileges required (use sudo)"; exit 1; \
+	fi
+	@echo "WARNING: this will:"
+	@echo "  - remove update-alternatives entries for node, npm, npx, corepack"
+	@echo "  - delete /usr/local/share/nvm/ (every installed Node.js version)"
+	@printf "Continue? [y/N] "; \
+	read ans; \
+	case "$$ans" in [yY]*) ;; *) echo "Aborted."; exit 1 ;; esac; \
+	$(MAKE) uninstall; \
+	for alt in node npm npx corepack; do \
+	    update-alternatives --remove-all $$alt 2>/dev/null || true; \
+	done; \
+	rm -rf /usr/local/share/nvm; \
+	echo "Purge complete."
+
 check:
 	@command -v $(SHELLCHECK) >/dev/null 2>&1 || { \
 	    echo "shellcheck not found. Install with: sudo apt install shellcheck"; exit 1; \
 	}
-	$(SHELLCHECK) --shell=bash $(SCRIPT) $(INSTALLER)
+	$(SHELLCHECK) --shell=bash $(SCRIPT)
 
 man:
 	@command -v man >/dev/null 2>&1 || { echo "man not found"; exit 1; }

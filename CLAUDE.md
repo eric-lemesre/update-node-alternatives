@@ -11,7 +11,7 @@ Interface interactive via `whiptail` (frontend debconf standard Debian).
 
 ```
 update-node-alternative          # Script principal (bash)
-install-node-alternative.sh      # Script d'installation de l'infrastructure
+debian/vendor-nvm.sh             # Helper de mise à jour du nvm vendoré
 ```
 
 ### Chemins système
