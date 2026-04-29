@@ -1,4 +1,4 @@
-update-node-alternative (0.2.0) UNRELEASED; urgency=medium
+update-node-alternative (0.2.0) unstable; urgency=medium
 
   * Initial release.
     - Manage system-wide Node.js versions via NVM and update-alternatives.
@@ -24,4 +24,4 @@ update-node-alternative (0.2.0) UNRELEASED; urgency=medium
       node/npm/npx/corepack registered at runtime by the script.
     - Refresh the package long description to mention the new frontends.
 
- -- Eric Lemesre <eric.lemesre@gmail.com>  Wed, 29 Apr 2026 13:25:12 +0200
+ -- Eric Lemesre <eric.lemesre@gmail.com>  Wed, 29 Apr 2026 13:41:57 +0200
