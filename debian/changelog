@@ -20,5 +20,8 @@ update-node-alternative (0.2.0) UNRELEASED; urgency=medium
       `make install` (script + man + vendored nvm) and a new `make purge`
       target for the manual install path. Per-user nvm migration is
       documented in the README.
+    - postrm: on purge, remove the update-alternatives entries for
+      node/npm/npx/corepack registered at runtime by the script.
+    - Refresh the package long description to mention the new frontends.
 
  -- Eric Lemesre <eric.lemesre@gmail.com>  Wed, 29 Apr 2026 13:25:12 +0200

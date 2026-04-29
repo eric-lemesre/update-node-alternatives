@@ -1,0 +1,35 @@
+#!/bin/sh
+# postrm script for update-node-alternative
+#
+# Drops the update-alternatives entries that update-node-alternative
+# may have registered for node/npm/npx/corepack. These are created at
+# runtime when a user runs `update-node-alternative --install <ver>`
+# (not by this maintainer script), so they survive a plain `remove`
+# and are only wiped on `purge`.
+#
+# The /usr/local/share/nvm/ store (every installed Node.js version) is
+# left in place even on purge, since it lives outside /usr and may
+# matter to the local administrator. Use `make purge` (manual install)
+# or remove it by hand if a clean slate is wanted.
+
+set -e
+
+case "$1" in
+    purge)
+        for alt in node npm npx corepack; do
+            update-alternatives --remove-all "$alt" 2>/dev/null || true
+        done
+        ;;
+
+    remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        ;;
+
+    *)
+        echo "postrm called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

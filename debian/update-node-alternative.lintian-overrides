@@ -2,3 +2,10 @@
 # a shebang for convenience but not executable, so lintian flags it. This is
 # the intended behaviour.
 update-node-alternative: script-not-executable [usr/share/update-node-alternative/nvm/bash_completion]
+
+# update-alternatives entries for node/npm/npx/corepack are registered at
+# runtime by the script itself when the user runs `update-node-alternative
+# --install <ver>` -- not by this package's postinst. They are therefore
+# only torn down on purge, even though no matching --install lives in any
+# maintainer script.
+update-node-alternative: postrm-removes-alternative
