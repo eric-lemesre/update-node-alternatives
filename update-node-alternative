@@ -58,8 +58,15 @@ usage()
 
 	Options:
 	  -v, --verbose                      Affichage detaille
-	  --no-dialog                        Desactiver whiptail (mode readline)
+	  --frontend <name>                  Forcer un frontend interactif:
+	                                       dialog, readline, gnome, kde,
+	                                       noninteractive
+	  --no-dialog                        Alias de --frontend=readline
 	  -h, -?, --help                     Afficher cette aide
+
+	Honore aussi DEBIAN_FRONTEND (cf. debconf(7)). Le frontend est sinon
+	auto-detecte: GUI (zenity/kdialog) si \$DISPLAY/\$WAYLAND_DISPLAY,
+	sinon TTY (whiptail/dialog), sinon readline.
 
 	<version> : numero de version (22, 20, v22.14.0, lts/jod, lts/*, etc.)
 	<nodename> : repertoire exact de version (v22.14.0, v20.18.1)
@@ -83,7 +90,7 @@ nodename=
 from_version=
 to_version=
 lts_only=
-use_dialog=yes
+forced_frontend=
 uaopts=(--quiet)
 
 while [ "$#" -gt 0 ]; do
@@ -129,7 +136,13 @@ while [ "$#" -gt 0 ]; do
       --lts)
 	lts_only=yes;;
       --no-dialog)
-	use_dialog=;;
+	forced_frontend=readline;;
+      --frontend)
+	shift
+	[ "$#" -gt 0 ] || usage 1
+	forced_frontend=$1;;
+      --frontend=*)
+	forced_frontend=${1#--frontend=};;
       -a|--auto)
 	[ -z "$action" ] || usage 1
 	action=auto;;
@@ -163,18 +176,81 @@ done
 [ -n "$action" ] || usage 1
 
 # ---------------------------------------------------------------------------
-# Interface debconf (whiptail/dialog)
+# Frontends interactifs (honore DEBIAN_FRONTEND)
 # ---------------------------------------------------------------------------
+#
+# Frontends supportes:
+#   dialog          whiptail (preferred) ou dialog -- TTY
+#   readline        prompt readline classique -- TTY sans courbes
+#   gnome           zenity -- GUI GTK (apt install zenity)
+#   kde             kdialog -- GUI Qt (apt install kdialog)
+#   noninteractive  pas de question, reponses par defaut sures
+#
+# Selection, par ordre de priorite:
+#   1. --frontend=NAME (option CLI)
+#   2. --no-dialog (alias historique de --frontend=readline)
+#   3. variable d'environnement DEBIAN_FRONTEND
+#   4. detection auto: GUI si DISPLAY/WAYLAND_DISPLAY + zenity/kdialog dispo,
+#      sinon dialog si whiptail/dialog dispo, sinon readline.
 
-# Detecter le frontend dialog disponible
-DIALOG_BIN=""
-if [ -n "$use_dialog" ]; then
-    if command -v whiptail &>/dev/null; then
-        DIALOG_BIN="whiptail"
-    elif command -v dialog &>/dev/null; then
-        DIALOG_BIN="dialog"
+frontend=
+
+if [ -n "$forced_frontend" ]; then
+    frontend="$forced_frontend"
+elif [ -n "${DEBIAN_FRONTEND:-}" ]; then
+    case "$DEBIAN_FRONTEND" in
+        dialog|whiptail)         frontend=dialog ;;
+        readline|text|editor)    frontend=readline ;;
+        gnome)                   frontend=gnome ;;
+        kde)                     frontend=kde ;;
+        noninteractive)          frontend=noninteractive ;;
+        *)                       frontend= ;;
+    esac
+fi
+
+if [ -z "$frontend" ]; then
+    if [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then
+        if command -v zenity >/dev/null 2>&1; then
+            frontend=gnome
+        elif command -v kdialog >/dev/null 2>&1; then
+            frontend=kde
+        fi
     fi
 fi
+if [ -z "$frontend" ]; then
+    if command -v whiptail >/dev/null 2>&1 || command -v dialog >/dev/null 2>&1; then
+        frontend=dialog
+    else
+        frontend=readline
+    fi
+fi
+
+DIALOG_BIN=""
+case "$frontend" in
+    dialog)
+        if command -v whiptail >/dev/null 2>&1; then
+            DIALOG_BIN=whiptail
+        elif command -v dialog >/dev/null 2>&1; then
+            DIALOG_BIN=dialog
+        else
+            echo >&2 "$prog: frontend=dialog mais ni whiptail ni dialog n'est installe"
+            exit 1
+        fi ;;
+    gnome)
+        command -v zenity >/dev/null 2>&1 || {
+            echo >&2 "$prog: frontend=gnome requiert zenity (apt install zenity)"; exit 1; }
+        DIALOG_BIN=zenity ;;
+    kde)
+        command -v kdialog >/dev/null 2>&1 || {
+            echo >&2 "$prog: frontend=kde requiert kdialog (apt install kdialog)"; exit 1; }
+        DIALOG_BIN=kdialog ;;
+    readline|noninteractive)
+        DIALOG_BIN= ;;
+    *)
+        echo >&2 "$prog: frontend inconnu: $frontend"
+        echo >&2 "  valides: dialog, readline, gnome, kde, noninteractive"
+        exit 1 ;;
+esac
 
 # Taille du terminal pour les dialogues
 # Remplit les variables globales DIALOG_ROWS et DIALOG_COLS
@@ -186,90 +262,135 @@ dialog_size()
     [ "$DIALOG_COLS" -gt 100 ] && DIALOG_COLS=100
 }
 
-# Question oui/non via debconf
+# Question oui/non
 # Usage: dialog_yesno "titre" "texte"
-# Retour: 0=oui, 1=non
+# Retour: 0=oui, 1=non (en mode noninteractive: 1)
 dialog_yesno()
 {
     local title="$1" text="$2"
-    if [ -n "$DIALOG_BIN" ]; then
-        dialog_size
-        "$DIALOG_BIN" --title "$title" --yesno "$text" "$DIALOG_ROWS" "$DIALOG_COLS"
-        return $?
-    else
-        # Fallback readline
-        local answer
-        read -rp "$text [o/N]: " answer
-        [[ "$answer" =~ ^[oOyY] ]]
-        return $?
-    fi
+    case "$frontend" in
+        dialog)
+            dialog_size
+            "$DIALOG_BIN" --title "$title" --yesno "$text" "$DIALOG_ROWS" "$DIALOG_COLS"
+            return $? ;;
+        gnome)
+            zenity --question --title="$title" --text="$text" 2>/dev/null
+            return $? ;;
+        kde)
+            kdialog --title "$title" --yesno "$text"
+            return $? ;;
+        noninteractive)
+            vecho "$prog: noninteractive: $title -> non (defaut)"
+            return 1 ;;
+        readline|*)
+            local answer
+            read -rp "$text [o/N]: " answer
+            [[ "$answer" =~ ^[oOyY] ]]
+            return $? ;;
+    esac
 }
 
 # Checklist interactive (selection multiple)
-# Usage: dialog_checklist "titre" "texte" item1 desc1 on/off item2 desc2 on/off ...
-# Retour: items selectionnes sur stdout (separes par espaces)
+# Usage: dialog_checklist "titre" "texte" tag1 desc1 ON/OFF tag2 desc2 ON/OFF ...
+# Retour: tags selectionnes (separes par espaces) sur stdout, rc=0 si OK
 dialog_checklist()
 {
     local title="$1" text="$2"
     shift 2
 
-    if [ -n "$DIALOG_BIN" ]; then
-        dialog_size
-        local list_height=$(( DIALOG_ROWS - 8 ))
-        [ "$list_height" -gt 20 ] && list_height=20
+    case "$frontend" in
+        dialog)
+            dialog_size
+            local list_height=$(( DIALOG_ROWS - 8 ))
+            [ "$list_height" -gt 20 ] && list_height=20
 
-        local result
-        if [ "$DIALOG_BIN" = "whiptail" ]; then
-            result=$("$DIALOG_BIN" --title "$title" --checklist "$text" \
-                "$DIALOG_ROWS" "$DIALOG_COLS" "$list_height" "$@" 3>&1 1>&2 2>&3)
-        else
-            result=$("$DIALOG_BIN" --title "$title" --checklist "$text" \
-                "$DIALOG_ROWS" "$DIALOG_COLS" "$list_height" "$@" 2>&1 1>/dev/tty)
-        fi
-        local rc=$?
-        # Nettoyer les guillemets de la sortie whiptail
-        echo "$result" | tr -d '"'
-        return "$rc"
-    else
-        # Fallback readline
-        echo >&2 "$title"
-        echo >&2 "$text"
-        echo >&2
-        local i=0
-        local items=()
-        while [ "$#" -ge 3 ]; do
-            local tag="$1" desc="$2" state="$3"
-            shift 3
-            i=$((i + 1))
-            local mark=" "
-            [ "$state" = "ON" ] && mark="*"
-            printf >&2 "  [%s] %d) %-30s %s\n" "$mark" "$i" "$tag" "$desc"
-            items+=("$tag")
-        done
-        echo >&2
-        echo >&2 "Entrez les numeros a selectionner (espace pour separer), 'a' pour tout, 'n' pour rien:"
-        local selections
-        read -rp "> " selections
-        case "$selections" in
-            [aA]|[aA]ll)
-                echo "${items[*]}"
-                return 0 ;;
-            [nN]|"")
-                return 1 ;;
-            *)
-                local selected=()
-                for sel in $selections; do
-                    if [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -ge 1 ] && [ "$sel" -le "${#items[@]}" ]; then
-                        selected+=("${items[$((sel - 1))]}")
+            local result
+            if [ "$DIALOG_BIN" = "whiptail" ]; then
+                result=$("$DIALOG_BIN" --title "$title" --checklist "$text" \
+                    "$DIALOG_ROWS" "$DIALOG_COLS" "$list_height" "$@" 3>&1 1>&2 2>&3)
+            else
+                result=$("$DIALOG_BIN" --title "$title" --checklist "$text" \
+                    "$DIALOG_ROWS" "$DIALOG_COLS" "$list_height" "$@" 2>&1 1>/dev/tty)
+            fi
+            local rc=$?
+            echo "$result" | tr -d '"'
+            return "$rc" ;;
+        gnome)
+            # zenity --list --checklist : "TRUE/FALSE tag desc" puis separator
+            local zargs=()
+            while [ "$#" -ge 3 ]; do
+                local tag="$1" desc="$2" state="$3"
+                shift 3
+                local checked=FALSE
+                [ "$state" = "ON" ] && checked=TRUE
+                zargs+=("$checked" "$tag" "$desc")
+            done
+            local result rc
+            result=$(zenity --list --checklist --title="$title" --text="$text" \
+                --column="" --column="Paquet" --column="Description" \
+                --separator=' ' --width=600 --height=400 \
+                "${zargs[@]}" 2>/dev/null)
+            rc=$?
+            [ "$rc" -eq 0 ] && echo "$result"
+            return "$rc" ;;
+        kde)
+            # kdialog --checklist title text tag desc on/off ...
+            local kargs=()
+            while [ "$#" -ge 3 ]; do
+                local tag="$1" desc="$2" state="$3"
+                shift 3
+                local checked=off
+                [ "$state" = "ON" ] && checked=on
+                kargs+=("$tag" "$desc" "$checked")
+            done
+            local result rc
+            result=$(kdialog --separate-output --title "$title" \
+                --checklist "$text" "${kargs[@]}")
+            rc=$?
+            [ "$rc" -eq 0 ] && echo "$result" | tr '\n' ' '
+            return "$rc" ;;
+        noninteractive)
+            vecho "$prog: noninteractive: $title -> selection vide (defaut)"
+            return 1 ;;
+        readline|*)
+            echo >&2 "$title"
+            echo >&2 "$text"
+            echo >&2
+            local i=0
+            local items=()
+            while [ "$#" -ge 3 ]; do
+                local tag="$1" desc="$2" state="$3"
+                shift 3
+                i=$((i + 1))
+                local mark=" "
+                [ "$state" = "ON" ] && mark="*"
+                printf >&2 "  [%s] %d) %-30s %s\n" "$mark" "$i" "$tag" "$desc"
+                items+=("$tag")
+            done
+            echo >&2
+            echo >&2 "Entrez les numeros a selectionner (espace pour separer), 'a' pour tout, 'n' pour rien:"
+            local selections
+            read -rp "> " selections
+            case "$selections" in
+                [aA]|[aA]ll)
+                    echo "${items[*]}"
+                    return 0 ;;
+                [nN]|"")
+                    return 1 ;;
+                *)
+                    local selected=()
+                    for sel in $selections; do
+                        if [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -ge 1 ] && [ "$sel" -le "${#items[@]}" ]; then
+                            selected+=("${items[$((sel - 1))]}")
+                        fi
+                    done
+                    if [ ${#selected[@]} -gt 0 ]; then
+                        echo "${selected[*]}"
+                        return 0
                     fi
-                done
-                if [ ${#selected[@]} -gt 0 ]; then
-                    echo "${selected[*]}"
-                    return 0
-                fi
-                return 1 ;;
-        esac
-    fi
+                    return 1 ;;
+            esac ;;
+    esac
 }
 
 # Menu (selection unique)
@@ -280,58 +401,86 @@ dialog_menu()
     local title="$1" text="$2"
     shift 2
 
-    if [ -n "$DIALOG_BIN" ]; then
-        dialog_size
-        local list_height=$(( DIALOG_ROWS - 8 ))
-        [ "$list_height" -gt 15 ] && list_height=15
+    case "$frontend" in
+        dialog)
+            dialog_size
+            local list_height=$(( DIALOG_ROWS - 8 ))
+            [ "$list_height" -gt 15 ] && list_height=15
 
-        local result
-        if [ "$DIALOG_BIN" = "whiptail" ]; then
-            result=$("$DIALOG_BIN" --title "$title" --menu "$text" \
-                "$DIALOG_ROWS" "$DIALOG_COLS" "$list_height" "$@" 3>&1 1>&2 2>&3)
-        else
-            result=$("$DIALOG_BIN" --title "$title" --menu "$text" \
-                "$DIALOG_ROWS" "$DIALOG_COLS" "$list_height" "$@" 2>&1 1>/dev/tty)
-        fi
-        local rc=$?
-        echo "$result"
-        return "$rc"
-    else
-        # Fallback readline
-        echo >&2 "$title"
-        echo >&2 "$text"
-        echo >&2
-        local i=0
-        local tags=()
-        while [ "$#" -ge 2 ]; do
-            local tag="$1" desc="$2"
-            shift 2
-            i=$((i + 1))
-            printf >&2 "  %d) %-20s %s\n" "$i" "$tag" "$desc"
-            tags+=("$tag")
-        done
-        echo >&2
-        local sel
-        read -rp "Choix (1-$i): " sel
-        if [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -ge 1 ] && [ "$sel" -le "${#tags[@]}" ]; then
-            echo "${tags[$((sel - 1))]}"
-            return 0
-        fi
-        return 1
-    fi
+            local result
+            if [ "$DIALOG_BIN" = "whiptail" ]; then
+                result=$("$DIALOG_BIN" --title "$title" --menu "$text" \
+                    "$DIALOG_ROWS" "$DIALOG_COLS" "$list_height" "$@" 3>&1 1>&2 2>&3)
+            else
+                result=$("$DIALOG_BIN" --title "$title" --menu "$text" \
+                    "$DIALOG_ROWS" "$DIALOG_COLS" "$list_height" "$@" 2>&1 1>/dev/tty)
+            fi
+            local rc=$?
+            echo "$result"
+            return "$rc" ;;
+        gnome)
+            local zargs=()
+            while [ "$#" -ge 2 ]; do
+                zargs+=("$1" "$2")
+                shift 2
+            done
+            local result rc
+            result=$(zenity --list --title="$title" --text="$text" \
+                --column="Tag" --column="Description" \
+                --width=600 --height=400 \
+                "${zargs[@]}" 2>/dev/null)
+            rc=$?
+            [ "$rc" -eq 0 ] && echo "$result"
+            return "$rc" ;;
+        kde)
+            local result rc
+            result=$(kdialog --title "$title" --menu "$text" "$@")
+            rc=$?
+            [ "$rc" -eq 0 ] && echo "$result"
+            return "$rc" ;;
+        noninteractive)
+            vecho "$prog: noninteractive: $title -> aucun choix"
+            return 1 ;;
+        readline|*)
+            echo >&2 "$title"
+            echo >&2 "$text"
+            echo >&2
+            local i=0
+            local tags=()
+            while [ "$#" -ge 2 ]; do
+                local tag="$1" desc="$2"
+                shift 2
+                i=$((i + 1))
+                printf >&2 "  %d) %-20s %s\n" "$i" "$tag" "$desc"
+                tags+=("$tag")
+            done
+            echo >&2
+            local sel
+            read -rp "Choix (1-$i): " sel
+            if [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -ge 1 ] && [ "$sel" -le "${#tags[@]}" ]; then
+                echo "${tags[$((sel - 1))]}"
+                return 0
+            fi
+            return 1 ;;
+    esac
 }
 
 # Message d'information
 dialog_msgbox()
 {
     local title="$1" text="$2"
-    if [ -n "$DIALOG_BIN" ]; then
-        dialog_size
-        "$DIALOG_BIN" --title "$title" --msgbox "$text" "$DIALOG_ROWS" "$DIALOG_COLS"
-    else
-        echo "$title"
-        echo "$text"
-    fi
+    case "$frontend" in
+        dialog)
+            dialog_size
+            "$DIALOG_BIN" --title "$title" --msgbox "$text" "$DIALOG_ROWS" "$DIALOG_COLS" ;;
+        gnome)
+            zenity --info --title="$title" --text="$text" 2>/dev/null ;;
+        kde)
+            kdialog --title "$title" --msgbox "$text" ;;
+        noninteractive|readline|*)
+            echo "$title"
+            echo "$text" ;;
+    esac
 }
 
 # ---------------------------------------------------------------------------
@@ -485,7 +634,9 @@ do_show_setting()
     printf "%-20s %s\n" "nodename" "${nodename:-<non defini>}"
     printf "%-20s %s\n" "from_version" "${from_version:-<non defini>}"
     printf "%-20s %s\n" "to_version" "${to_version:-<non defini>}"
-    printf "%-20s %s\n" "DIALOG_BIN" "${DIALOG_BIN:-<aucun, mode readline>}"
+    printf "%-20s %s\n" "frontend" "$frontend"
+    printf "%-20s %s\n" "DIALOG_BIN" "${DIALOG_BIN:-<aucun>}"
+    printf "%-20s %s\n" "DEBIAN_FRONTEND" "${DEBIAN_FRONTEND:-<non defini>}"
 }
 
 # ---------------------------------------------------------------------------

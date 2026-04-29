@@ -11,5 +11,10 @@ update-node-alternative (0.1.0) UNRELEASED; urgency=medium
     - Bundles nvm 0.40.4, advertised via Provides: bundled-nvm-0.40.4.
     - Tracks upstream releases via debian/watch (uscan), including the
       embedded nvm component.
+    - Honours DEBIAN_FRONTEND (debconf(7)): adds gnome (zenity), kde
+      (kdialog) and noninteractive frontends in addition to the existing
+      whiptail/dialog and readline ones. Adds --frontend NAME to force
+      a specific backend; --no-dialog is now an alias of
+      --frontend=readline. zenity and kdialog are listed under Suggests.
 
  -- Eric Lemesre <eric.lemesre@gmail.com>  Wed, 29 Apr 2026 12:06:38 +0200

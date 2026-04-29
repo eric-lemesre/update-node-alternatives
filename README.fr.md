@@ -20,7 +20,9 @@ sur readline classique).
 - Priorité calculée automatiquement depuis la version : `majeur * 100 + mineur`
   (ex. `v22.14.0` → `2214`)
 - Migration interactive des paquets npm globaux entre versions (checklist)
-- Mode non-interactif / scriptable via `--no-dialog`
+- Honore `DEBIAN_FRONTEND` (cf. [`debconf(7)`](https://manpages.debian.org/debconf.7))&nbsp;:
+  supporte `dialog` (whiptail/dialog), `readline`, `gnome` (zenity), `kde`
+  (kdialog) et `noninteractive`. Auto-détecté si non défini.
 
 ## Démarrage rapide
 
@@ -68,7 +70,9 @@ Actions alternatives :
 
 Options :
   -v, --verbose                      Affichage détaillé
-  --no-dialog                        Désactiver whiptail (mode readline)
+  --frontend <name>                  Forcer un frontend : dialog, readline,
+                                       gnome, kde, noninteractive
+  --no-dialog                        Alias de --frontend=readline
   -h, --help                         Afficher l'aide
 ```
 

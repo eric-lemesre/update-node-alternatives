@@ -20,6 +20,9 @@ Depends:
  curl | wget,
  ca-certificates,
 Recommends: git
+Suggests:
+ zenity,
+ kdialog,
 Provides: bundled-nvm-0.40.4
 Description: manage system-wide Node.js versions via NVM and update-alternatives
  update-node-alternative combines the NVM infrastructure (used to download

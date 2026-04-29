@@ -24,13 +24,26 @@ symlinks).
 .PP
 It is designed in the spirit of
 .BR update-java-alternatives (8)
-and exposes an interactive
-.BR debconf (7)-style
-frontend through
+and honours the
+.B DEBIAN_FRONTEND
+convention (see
+.BR debconf (7)).
+The interactive frontend is selected automatically:
+.BR zenity (1)
+or
+.BR kdialog (1)
+when a graphical session is detected
+.RB ( \%$DISPLAY
+or
+.BR \%$WAYLAND_DISPLAY ),
 .BR whiptail (1)
-(with a
+or
 .BR dialog (1)
-or plain readline fallback).
+on a TTY, with a plain readline fallback. The choice can be forced with
+.B \-\-frontend
+or via the
+.B DEBIAN_FRONTEND
+environment variable.
 .PP
 Priority for
 .BR update-alternatives (1)
@@ -118,11 +131,20 @@ Switch the node alternative back to automatic mode (highest priority wins).
 .BR \-v ", " \-\-verbose
 Be verbose about what is happening.
 .TP
+.BR \-\-frontend " " \fIname\fR
+Force a specific interactive frontend. Valid values:
+.BR dialog " (whiptail/dialog), "
+.BR readline ", "
+.BR gnome " (zenity), "
+.BR kde " (kdialog), and "
+.BR noninteractive .
+Overrides
+.BR \%$DEBIAN_FRONTEND .
+.TP
 .B \-\-no\-dialog
-Disable the
-.BR whiptail (1) / dialog (1)
-frontend and use a plain readline-based prompt instead. Useful over SSH
-sessions without TTY colour support or in scripts.
+Alias for
+.BR \-\-frontend " " readline.
+Useful over SSH sessions without TTY colour support or in scripts.
 .TP
 .B \-\-lts
 When combined with
@@ -203,12 +225,23 @@ Return to automatic mode (highest priority wins):
 .RS 4
 sudo update-node-alternative \-\-auto
 .RE
+.SH ENVIRONMENT
+.TP
+.B DEBIAN_FRONTEND
+When set to
+.BR dialog ", " readline ", " gnome ", " kde
+or
+.BR noninteractive ,
+selects the interactive frontend. Other values fall back to auto-detection.
 .SH SEE ALSO
 .BR update-alternatives (1),
 .BR update-java-alternatives (8),
+.BR debconf (7),
 .BR nvm (1),
 .BR whiptail (1),
 .BR dialog (1),
+.BR zenity (1),
+.BR kdialog (1),
 .BR npm (1)
 .SH AUTHOR
 Eric Lemesre <eric.lemesre@gmail.com>

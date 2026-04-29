@@ -20,7 +20,9 @@ symlinks). A debconf-style interactive frontend is provided via
 - Priority auto-computed from the Node.js version: `major * 100 + minor`
   (e.g. `v22.14.0` → `2214`)
 - Interactive migration of global npm packages between versions (checklist)
-- Non-interactive / scriptable mode via `--no-dialog`
+- Honours `DEBIAN_FRONTEND` (see [`debconf(7)`](https://manpages.debian.org/debconf.7));
+  supports `dialog` (whiptail/dialog), `readline`, `gnome` (zenity), `kde`
+  (kdialog) and `noninteractive`. Auto-detected when unset.
 
 ## Quick start
 
@@ -68,7 +70,9 @@ update-alternatives actions:
 
 Options:
   -v, --verbose                      Verbose output
-  --no-dialog                        Disable whiptail (readline mode)
+  --frontend <name>                  Force frontend: dialog, readline,
+                                       gnome, kde, noninteractive
+  --no-dialog                        Alias for --frontend=readline
   -h, --help                         Show help
 ```
 
