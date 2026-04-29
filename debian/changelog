@@ -8,5 +8,8 @@ update-node-alternative (0.1.0) UNRELEASED; urgency=medium
       --update, --packages, --upgrade, --reinstall-packages.
     - Interactive migration of global npm packages between versions.
     - Ships a manual page (update-node-alternative(8)).
+    - Bundles nvm 0.40.4, advertised via Provides: bundled-nvm-0.40.4.
+    - Tracks upstream releases via debian/watch (uscan), including the
+      embedded nvm component.
 
- -- Eric Lemesre <eric.lemesre@gmail.com>  Mon, 20 Apr 2026 12:00:00 +0200
+ -- Eric Lemesre <eric.lemesre@gmail.com>  Wed, 29 Apr 2026 12:06:38 +0200
