@@ -21,7 +21,7 @@ NVM_EXEC   = vendor/nvm/nvm-exec
 
 SHELLCHECK ?= shellcheck
 
-.PHONY: all help install install-nvm uninstall check man clean
+.PHONY: all help install install-nvm uninstall check man clean deb deb-clean check-upstream vendor-nvm vendor-nvm-show
 
 all: help
 
@@ -33,6 +33,11 @@ help:
 	@echo "  make check         Run shellcheck on shell scripts"
 	@echo "  make man           Show the man page"
 	@echo "  make clean         Remove generated artifacts"
+	@echo "  make deb           Build the Debian package into ../"
+	@echo "  make deb-clean     Clean Debian build artifacts"
+	@echo "  make check-upstream  Check upstream releases via uscan (debian/watch)"
+	@echo "  make vendor-nvm-show Show currently bundled nvm version"
+	@echo "  make vendor-nvm NVM_VERSION=X.Y.Z  Refresh vendor/nvm/ to a new version"
 	@echo
 	@echo "Variables: PREFIX=$(PREFIX)  BINDIR=$(BINDIR)  MANDIR=$(MANDIR)"
 
@@ -69,3 +74,27 @@ man:
 
 clean:
 	@:
+
+deb:
+	dpkg-buildpackage -us -uc -b
+
+deb-clean:
+	fakeroot debian/rules clean
+	rm -f ../$(SCRIPT)_*.deb ../$(SCRIPT)_*.changes ../$(SCRIPT)_*.buildinfo
+
+check-upstream:
+	@command -v uscan >/dev/null 2>&1 || { \
+	    echo "uscan not found. Install with: sudo apt install devscripts"; exit 1; \
+	}
+	uscan --no-download --report --verbose
+
+vendor-nvm-show:
+	@echo "Bundled nvm: $$(cat vendor/nvm/VERSION 2>/dev/null || echo '<missing>')"
+
+vendor-nvm:
+	@if [ -z "$(NVM_VERSION)" ]; then \
+	    echo "Usage: make vendor-nvm NVM_VERSION=X.Y.Z"; \
+	    echo "Currently bundled: $$(cat vendor/nvm/VERSION 2>/dev/null || echo '<none>')"; \
+	    exit 1; \
+	fi
+	./debian/vendor-nvm.sh $(NVM_VERSION)
