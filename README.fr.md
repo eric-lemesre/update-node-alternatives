@@ -42,8 +42,8 @@ update-node-alternative --list
 Pour un vrai paquet Debian :
 
 ```bash
-dpkg-buildpackage -us -uc -b
-sudo dpkg -i ../update-node-alternative_*.deb
+make deb
+sudo apt install -y ../update-node-alternative_*.deb
 ```
 
 ## Utilisation
@@ -125,11 +125,34 @@ make check          # lancer shellcheck
 make install        # installer dans $PREFIX (par défaut /usr/local)
 make uninstall      # supprimer les fichiers installés
 make man            # afficher la man page
+```
 
-# Packaging Debian
-dpkg-buildpackage -us -uc -b
+### Packaging Debian
+
+```bash
+make deb            # construit le .deb dans ../ (wraps dpkg-buildpackage -us -uc -b)
+make deb-clean      # nettoie les artefacts de build Debian
 lintian ../update-node-alternative_*.changes
 ```
+
+### NVM embarqué
+
+Le paquet embarque une copie upstream de [nvm](https://github.com/nvm-sh/nvm)
+sous `vendor/nvm/` (installée dans `/usr/share/update-node-alternative/nvm/`).
+La version exacte est enregistrée dans `vendor/nvm/VERSION` et exposée par le
+paquet binaire via `Provides: bundled-nvm-<version>`.
+
+```bash
+make vendor-nvm-show               # afficher la version NVM embarquée
+make check-upstream                # détecter les nouvelles versions (uscan + debian/watch)
+make vendor-nvm NVM_VERSION=0.40.4 # rafraîchir vendor/nvm/ vers une version donnée
+```
+
+`make vendor-nvm` lance `debian/vendor-nvm.sh`, qui télécharge le tarball
+upstream, remplace les fichiers de `vendor/nvm/`, met à jour
+`vendor/nvm/VERSION` et bumpe `Provides: bundled-nvm-<version>` dans
+`debian/control`. Après exécution, ajouter une entrée changelog avec
+`dch -i "Update bundled nvm to <version>."`, committer, puis `make deb`.
 
 ## Licence
 
