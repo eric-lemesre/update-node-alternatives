@@ -1,5 +1,6 @@
 # Editor/agent working directories
 .claude/
+.idea/
 
 # Debian build artifacts
 debian/.debhelper/

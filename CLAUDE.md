@@ -133,16 +133,16 @@ debian/                          # Packaging Debian
 
 ## Cibles Make
 
-| Cible | Effet |
-|---|---|
-| `install` / `uninstall` | Standard, honore `PREFIX` et `DESTDIR` |
-| `purge` | `uninstall` + retire alternatives + supprime `/usr/local/share/nvm/` (interactif, root requis) |
-| `check` | shellcheck sur `update-node-alternative` |
-| `man` | Affiche la man page |
-| `deb` / `deb-clean` | Wrap `dpkg-buildpackage -us -uc -b` + clean |
-| `check-upstream` | `uscan --no-download --report --verbose` |
-| `vendor-nvm-show` | Affiche la version embarquée |
-| `vendor-nvm NVM_VERSION=X.Y.Z` | Rafraîchit `vendor/nvm/` |
+| Cible                          | Effet                                                                                          |
+| ------------------------------ | ---------------------------------------------------------------------------------------------- |
+| `install` / `uninstall`        | Standard, honore `PREFIX` et `DESTDIR`                                                         |
+| `purge`                        | `uninstall` + retire alternatives + supprime `/usr/local/share/nvm/` (interactif, root requis) |
+| `check`                        | shellcheck sur `update-node-alternative`                                                       |
+| `man`                          | Affiche la man page                                                                            |
+| `deb` / `deb-clean`            | Wrap `dpkg-buildpackage -us -uc -b` + clean                                                    |
+| `check-upstream`               | `uscan --no-download --report --verbose`                                                       |
+| `vendor-nvm-show`              | Affiche la version embarquée                                                                   |
+| `vendor-nvm NVM_VERSION=X.Y.Z` | Rafraîchit `vendor/nvm/`                                                                       |
 
 ## Packaging Debian
 
@@ -197,10 +197,12 @@ debian/                          # Packaging Debian
 
 - [ ] Tests automatisés (bats-core ou tests fonctionnels)
 - [ ] Templates debconf + `dpkg-reconfigure` (Niveau 3 : configuration
+  
       persistante de la version par défaut au moment de `apt install`)
 - [ ] `debian/postrm` : retirer les alternatives lors d'un `apt purge`
 - [ ] Complétion bash/zsh (`/etc/bash_completion.d/`)
 - [ ] Intégration `/etc/profile.d/` pour exposer le PATH des binaires npm
+  
       globaux installés par utilisateur
 - [ ] Nettoyage du cache NVM (`/usr/local/share/nvm/.cache/`)
 - [ ] Publication paquet (Debian mentors, PPA Ubuntu, ou repo APT perso)
