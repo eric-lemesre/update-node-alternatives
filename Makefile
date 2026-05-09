@@ -7,6 +7,10 @@ PKGDIR    ?= $(PREFIX)/share/update-node-alternatives
 NVMDIR    ?= $(PKGDIR)/nvm
 DESTDIR   ?=
 
+# Skip the man page when set to 0. Used by debian/rules so dh_installman
+# can pick up the page from debian/manpages instead.
+INSTALL_MAN ?= 1
+
 INSTALL        ?= install
 INSTALL_PROG   ?= $(INSTALL) -m 0755
 INSTALL_DATA   ?= $(INSTALL) -m 0644
@@ -42,18 +46,22 @@ help:
 
 install:
 	$(INSTALL_DIR) $(DESTDIR)$(BINDIR)
-	$(INSTALL_DIR) $(DESTDIR)$(MANDIR)
 	$(INSTALL_DIR) $(DESTDIR)$(NVMDIR)
 	$(INSTALL_PROG) $(SCRIPT)   $(DESTDIR)$(BINDIR)/$(SCRIPT)
-	$(INSTALL_DATA) $(MANPAGE)  $(DESTDIR)$(MANDIR)/$(MANPAGE)
 	$(INSTALL_DATA) $(NVM_FILES) $(DESTDIR)$(NVMDIR)/
 	$(INSTALL_PROG) $(NVM_EXEC)  $(DESTDIR)$(NVMDIR)/nvm-exec
+ifneq ($(INSTALL_MAN),0)
+	$(INSTALL_DIR) $(DESTDIR)$(MANDIR)
+	$(INSTALL_DATA) $(MANPAGE)  $(DESTDIR)$(MANDIR)/$(MANPAGE)
+endif
 
 uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/$(SCRIPT)
-	rm -f $(DESTDIR)$(MANDIR)/$(MANPAGE)
 	rm -rf $(DESTDIR)$(NVMDIR)
 	rmdir --ignore-fail-on-non-empty $(DESTDIR)$(PKGDIR) 2>/dev/null || true
+ifneq ($(INSTALL_MAN),0)
+	rm -f $(DESTDIR)$(MANDIR)/$(MANPAGE)
+endif
 
 # Full removal: also drop update-alternatives entries and the
 # /usr/local/share/nvm/ store (every installed Node.js version).
