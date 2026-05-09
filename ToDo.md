@@ -58,6 +58,43 @@ par cohérence avec `update-alternatives`).
 
 ---
 
+## Phase 1bis — Traductions debconf
+
+Suite directe de la phase 1 (debconf 1.b) : fournir des `.po` pour les
+templates dans les langues les plus actives de Debian.
+
+- **Pourquoi** : les `_Description:` sont déjà préparés pour po-debconf
+  (`debian/po/templates.pot` est généré). Une bonne couverture
+  linguistique est attendue pour un paquet qui pose des questions
+  debconf à l'install.
+- **Cibles** (top ~10 par activité de traduction sur
+  [i18n.debian.org](https://www.debian.org/international/l10n/po-debconf/rank)) :
+  - [ ] `fr.po` — français
+  - [ ] `de.po` — allemand
+  - [ ] `es.po` — espagnol
+  - [ ] `it.po` — italien
+  - [ ] `pt_BR.po` — portugais brésilien
+  - [ ] `nl.po` — néerlandais
+  - [ ] `ru.po` — russe
+  - [ ] `ja.po` — japonais
+  - [ ] `cs.po` — tchèque
+  - [ ] `sv.po` — suédois
+- **Méthode** :
+  - [ ] `cd debian/po && msginit -i templates.pot -o <lang>.po -l <lang>`
+        (ou copier puis traduire à la main)
+  - [ ] `debconf-updatepo` après chaque modification du
+        `debian/templates`
+  - [ ] vérification : `podebconf-display-po debian/po/<lang>.po`
+- **Notes** :
+  - on peut s'auto-traduire `fr.po` ; pour les autres, ouvrir des
+    appels à traduction sur la liste `debian-l10n-<lang>` une fois le
+    paquet publié
+  - lintian signale `package-needs-versioned-debconf-dependency` ou
+    `unknown-locale-code` si une langue n'est pas reconnue ; choisir
+    des codes ISO standard
+
+---
+
 ## Phase 2 — Hook `npm -g`, complétion, promotion per-user
 
 > À démarrer **après** la phase 1 (rename + debconf).
