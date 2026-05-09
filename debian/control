@@ -1,15 +1,15 @@
-Source: update-node-alternative
+Source: update-node-alternatives
 Section: devel
 Priority: optional
 Maintainer: Eric Lemesre <eric.lemesre@gmail.com>
 Build-Depends: debhelper-compat (= 13)
 Standards-Version: 4.7.0
 Rules-Requires-Root: no
-Homepage: https://github.com/eric-lemesre/update-node-alternative
-Vcs-Git: https://github.com/eric-lemesre/update-node-alternative.git
-Vcs-Browser: https://github.com/eric-lemesre/update-node-alternative
+Homepage: https://github.com/eric-lemesre/update-node-alternatives
+Vcs-Git: https://github.com/eric-lemesre/update-node-alternatives.git
+Vcs-Browser: https://github.com/eric-lemesre/update-node-alternatives
 
-Package: update-node-alternative
+Package: update-node-alternatives
 Architecture: all
 Multi-Arch: foreign
 Depends:
@@ -25,7 +25,7 @@ Suggests:
  kdialog,
 Provides: bundled-nvm-0.40.4
 Description: manage system-wide Node.js versions via NVM and update-alternatives
- update-node-alternative combines the NVM infrastructure (used to download
+ update-node-alternatives combines the NVM infrastructure (used to download
  and store Node.js binaries under /usr/local/share/nvm/versions/node/) with
  Debian's update-alternatives mechanism (used to switch the /usr/local/bin/
  symlinks for node, npm, npx and corepack).

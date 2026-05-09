@@ -1,9 +1,9 @@
 version=4
 
-# Main upstream: update-node-alternative
+# Main upstream: update-node-alternatives
 opts=\
-filenamemangle=s/.+\/v?(\d\S*)\.tar\.gz/update-node-alternative-$1.tar.gz/ \
-  https://github.com/eric-lemesre/update-node-alternative/tags \
+filenamemangle=s/.+\/v?(\d\S*)\.tar\.gz/update-node-alternatives-$1.tar.gz/ \
+  https://github.com/eric-lemesre/update-node-alternatives/tags \
   .*/v?(\d\S+)\.tar\.gz
 
 # Bundled component: nvm (vendored under vendor/nvm/)

@@ -1,7 +1,7 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: update-node-alternative
+Upstream-Name: update-node-alternatives
 Upstream-Contact: Eric Lemesre <eric.lemesre@gmail.com>
-Source: https://github.com/eric-lemesre/update-node-alternative
+Source: https://github.com/eric-lemesre/update-node-alternatives
 
 Files: *
 Copyright: 2026 Eric Lemesre <eric.lemesre@gmail.com>

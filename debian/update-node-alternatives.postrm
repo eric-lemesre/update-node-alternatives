@@ -1,9 +1,9 @@
 #!/bin/sh
-# postrm script for update-node-alternative
+# postrm script for update-node-alternatives
 #
-# Drops the update-alternatives entries that update-node-alternative
+# Drops the update-alternatives entries that update-node-alternatives
 # may have registered for node/npm/npx/corepack. These are created at
-# runtime when a user runs `update-node-alternative --install <ver>`
+# runtime when a user runs `update-node-alternatives --install <ver>`
 # (not by this maintainer script), so they survive a plain `remove`
 # and are only wiped on `purge`.
 #
