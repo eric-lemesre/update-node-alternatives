@@ -23,8 +23,6 @@ final, par cohérence avec `update-alternatives`).
   - [ ] `debian/watch` (composant + main upstream)
   - [ ] `README.md`, `README.fr.md`
   - [ ] `AGENTS.md`
-  - [ ] **transitional package** `update-node-alternative` qui dépend du
-        nouveau nom, pour ne pas casser les installations existantes
 
 ### 2. debconf scénario 1.b — proposer une version par défaut à l'install
 
