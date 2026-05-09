@@ -26,7 +26,11 @@ vendor/nvm/                        # Copie vendorée de nvm-sh/nvm (MIT)
   nvm.sh, nvm-exec, bash_completion, LICENSE.md, README.md
 debian/                            # Packaging Debian
   changelog, control, copyright (DEP-5), rules, watch
-  source/format, *.examples, *.lintian-overrides
+  source/format, *.lintian-overrides, manpages
+  README.Debian                      # Contrat install/uninstall (postrm-only)
+  upstream/metadata                  # DEP-12 (Repository, Bug-Database, …)
+  config, templates, postinst, postrm  # debconf 1.b (default-version, purge-nvm-store)
+  po/POTFILES.in, po/templates.pot   # po-debconf scaffolding
   vendor-nvm.sh                      # Helper de mise à jour du nvm vendoré
 ```
 
@@ -146,13 +150,28 @@ debian/                            # Packaging Debian
 
 ## Packaging Debian
 
-- `debian/control` — `Architecture: all`, `Depends: bash (>=4.0), dpkg (>=1.15.4),
-  whiptail | dialog, curl | wget, ca-certificates`, `Suggests: zenity, kdialog`,
-  `Provides: bundled-nvm-X.Y.Z`
+- `debian/control` — `Architecture: all`, `Pre-Depends: debconf`,
+  `Depends: bash (>=4.0), dpkg (>=1.15.4), whiptail | dialog, curl | wget,
+  ca-certificates`, `Build-Depends: debhelper-compat (= 13), po-debconf`,
+  `Suggests: zenity, kdialog`, `Provides: bundled-nvm-X.Y.Z`
 - `debian/copyright` — Format DEP-5 ; GPL-2+ pour le code, Expat (MIT) pour
   `vendor/nvm/*`
-- `debian/rules` — `dh $@` + `dh_auto_install -- PREFIX=/usr`
+- `debian/rules` — `dh $@` + `dh_auto_install -- PREFIX=/usr INSTALL_MAN=0`
+  (la man page passe par `dh_installman` via `debian/manpages`)
 - `debian/watch` — uscan v4 ; suit le repo principal + composant `nvm`
+- `debian/manpages` — liste les man pages (consommé par `dh_installman`)
+- `debian/upstream/metadata` — DEP-12 (Repository, Bug-Database, …)
+- `debian/README.Debian` — documente le contrat (pourquoi pas
+  `dh_installalternatives`, politique de purge `/usr/local/share/nvm/`)
+- `debian/{config,templates,postinst}` — debconf scénario 1.b : choix
+  d'une version Node.js par défaut à l'install, et préférence sur la
+  purge de `/usr/local/share/nvm/` (default `none` / `false` ⇒ safe sous
+  `noninteractive`)
+- `debian/update-node-alternatives.postrm` — retire les alternatives au
+  purge ; repose la question `purge-nvm-store` via debconf et supprime
+  `/usr/local/share/nvm/` selon la réponse
+- `debian/po/POTFILES.in` + `debian/po/templates.pot` — scaffolding
+  po-debconf (régénéré par `debconf-updatepo`)
 - `debian/vendor-nvm.sh` — helper de bump du nvm embarqué
 
 ## Dépendances
@@ -184,26 +203,26 @@ debian/                            # Packaging Debian
 - [x] Intégration NVM (install, remove, list-remote, list-packages, upgrade)
 - [x] Intégration update-alternatives (list, set, auto, update)
 - [x] Migration interactive des paquets globaux
-- [x] Man page `update-node-alternatives.8`
+- [x] Man page `update-node-alternatives.8` (gérée par `dh_installman` via
+      `debian/manpages`)
 - [x] Makefile (install, uninstall, purge, check, deb, check-upstream, vendor-nvm)
-- [x] Packaging Debian (control, copyright DEP-5, rules, watch, lintian-overrides)
+- [x] Packaging Debian (control, copyright DEP-5, rules, watch, manpages,
+      upstream/metadata, README.Debian, lintian-overrides)
 - [x] NVM vendoré (0.40.4) + `Provides: bundled-nvm-X.Y.Z`
 - [x] Surveillance upstream via `debian/watch` (uscan v4, composant `nvm`)
 - [x] Licence GPL-2+ (SPDX headers)
-- [x] Suppression de l'ancien `install-node-alternative.sh`
-- [x] Renommage `--packages` → `--list-packages` (cohérence avec `--list*`)
+- [x] `postrm` : retire les alternatives node/npm/npx/corepack au purge
+- [x] **Phase 1 (0.3.0~UNRELEASED)** : rename `update-node-alternative`
+      → `update-node-alternatives`, debconf 1.b (default-version +
+      purge-nvm-store reposé au purge), DEP-12 metadata,
+      `debian/README.Debian`. Détails dans `ToDo.md`.
 
-## TODO / Pistes restantes
+## TODO / Pistes restantes (phase 2 et après)
 
+- [ ] **Phase 2** (cf. `ToDo.md`) : slaves dynamiques pour `npm -g`,
+      `/etc/profile.d/` per-user, complétion bash, hook post-`npm -g`,
+      promotion per-user → system-wide
 - [ ] Tests automatisés (bats-core ou tests fonctionnels)
-- [ ] Templates debconf + `dpkg-reconfigure` (Niveau 3 : configuration
-  
-      persistante de la version par défaut au moment de `apt install`)
-- [ ] `debian/postrm` : retirer les alternatives lors d'un `apt purge`
-- [ ] Complétion bash/zsh (`/etc/bash_completion.d/`)
-- [ ] Intégration `/etc/profile.d/` pour exposer le PATH des binaires npm
-  
-      globaux installés par utilisateur
 - [ ] Nettoyage du cache NVM (`/usr/local/share/nvm/.cache/`)
 - [ ] Publication paquet (Debian mentors, PPA Ubuntu, ou repo APT perso)
 - [ ] CI (shellcheck + build deb + lintian)

@@ -5,71 +5,56 @@
 > Ce document est l'export actionnable de la roadmap ; les détails de
 > conception complets sont dans le rapport.
 
-## Phase 1 — Alignement standards Debian + rename
+## Phase 1 — Alignement standards Debian + rename ✅
 
-### 1. Renommer le projet/paquet
+Implémentée le 2026-05-09 dans le changelog `0.3.0~UNRELEASED`.
 
-`update-node-alternative` → `update-node-alternative**s**` (avec un S
-final, par cohérence avec `update-alternatives`).
+### 1. Renommer le projet/paquet ✅
 
-- **Pourquoi** : le binaire n'est qu'un wrapper autour de
-  `update-alternatives(1)`, le nom doit refléter la parenté.
-- **À faire** :
-  - [ ] dépôt git (rename)
-  - [ ] nom du paquet Debian (`debian/control` `Source:` + `Package:`)
-  - [ ] binaire installé (`/usr/sbin/update-node-alternatives`)
-  - [ ] man page (renommer `.8` → ajuster `Makefile`, `debian/manpages`)
-  - [ ] URLs `Vcs-*`, `Homepage:` dans `debian/control`
-  - [ ] `debian/watch` (composant + main upstream)
-  - [ ] `README.md`, `README.fr.md`
-  - [ ] `AGENTS.md`
+`update-node-alternative` → `update-node-alternatives` (avec un S final,
+par cohérence avec `update-alternatives`).
 
-### 2. debconf scénario 1.b — proposer une version par défaut à l'install
+- [x] dépôt git (rename local — pas de remote, pas de transitional)
+- [x] nom du paquet Debian (`debian/control` `Source:` + `Package:`)
+- [x] binaire installé (`/usr/sbin/update-node-alternatives`)
+- [x] man page (renommée `.8` + `debian/manpages`)
+- [x] URLs `Vcs-*`, `Homepage:` dans `debian/control`
+- [x] `debian/watch` (composant + main upstream)
+- [x] `README.md`, `README.fr.md`
+- [x] `AGENTS.md`
 
-- **Pourquoi** : vrai standard Debian d'interaction au packaging ;
-  aligne avec le TODO « configuration persistante de la version par
-  défaut ».
-- **À faire** :
-  - [ ] `debian/templates` (question : LTS / latest / aucune / version
-        choisie)
-  - [ ] `debian/config` (frontend debconf qui pose la question)
-  - [ ] `debian/postinst` (sourcer `/usr/share/debconf/confmodule` ;
-        déclenche `update-node-alternatives --install <ver>` selon la
-        réponse)
-  - [ ] `debian/po/` + `Build-Depends: po-debconf`
-  - [ ] vérifier compatibilité `DEBIAN_FRONTEND=noninteractive` (mode
-        sûr : ne rien installer)
+### 2. debconf scénario 1.b ✅
 
-### 3. Prendre en compte `update-alternatives` au niveau packaging
+- [x] `debian/templates` (default-version : `latest LTS` / `latest` /
+      `none` (défaut) / `custom` ; et `purge-nvm-store`)
+- [x] `debian/config` (frontend debconf qui pose les questions)
+- [x] `debian/postinst` (déclenche `update-node-alternatives --install
+      <ver>` selon la réponse)
+- [x] `debian/po/` + `Build-Depends: po-debconf` + `Pre-Depends: debconf`
+- [x] compat `DEBIAN_FRONTEND=noninteractive` : default `none` ⇒ aucun
+      téléchargement silencieux
 
-- **Pourquoi** : le wrapper n'est qu'une surcouche ; au niveau paquet,
-  on devrait au minimum déclarer la sémantique correctement et
-  clarifier le contrat avec le `postrm`.
-- **À faire** :
-  - [ ] évaluer `dh_installalternatives` (debhelper) pour les entrées
-        prévisibles, ou rester en stratégie postrm-only (à documenter)
-  - [ ] décider si `postrm purge` doit aussi nettoyer la couche 2
-        (`/usr/local/share/nvm/`) ou la conserver (statu quo)
-  - [ ] documenter le contrat d'installation/désinstallation dans
-        `debian/README.Debian`
+### 3. `update-alternatives` au niveau packaging ✅
 
-### 4. `debian/manpages`
+- [x] choix de stratégie : **postrm-only** (les targets vivent sous
+      `/usr/local/share/nvm/versions/node/vX.Y.Z/` et n'existent pas à
+      l'install ⇒ `dh_installalternatives` inadapté)
+- [x] `postrm purge` nettoie `/usr/local/share/nvm/` selon la
+      préférence stockée à l'install via debconf
+      (`update-node-alternatives/purge-nvm-store`), reposée et
+      reconfirmée au purge
+- [x] contrat d'install/désinstall documenté dans `debian/README.Debian`
 
-- **Pourquoi** : confier à `dh_installman` la compression et les
-  permissions standards.
-- **À faire** :
-  - [ ] créer `debian/manpages` (liste : `update-node-alternative.8`,
-        ou `update-node-alternatives.8` après rename)
-  - [ ] retirer la copie de la man page côté `debian/rules` (elle reste
-        dans `Makefile install` pour le mode hors-paquet)
+### 4. `debian/manpages` ✅
 
-### 5. `debian/upstream/metadata`
+- [x] créer `debian/manpages` (liste `update-node-alternatives.8`)
+- [x] flag Makefile `INSTALL_MAN` (default 1) ; `debian/rules` passe
+      `INSTALL_MAN=0` à `dh_auto_install` ⇒ `dh_installman` prend la
+      main pour la compression et les permissions
 
-- **Pourquoi** : bonne pratique moderne (lintian le suggère),
-  gain gratuit.
-- **À faire** :
-  - [ ] créer `debian/upstream/metadata` (Repository, Bug-Database,
-        etc.)
+### 5. `debian/upstream/metadata` ✅
+
+- [x] créé (Repository, Repository-Browse, Bug-Database, Bug-Submit)
 
 ---
 
@@ -181,7 +166,7 @@ Deux sous-commandes séparées par privilèges
         l'install root
   - [ ] `DEBIAN_FRONTEND=noninteractive` ⇒ rapport seul, aucune action
   - [ ] idempotence : skip si version system-wide ≥ version per-user
-  - [ ] signaler les conflits de version
+  - [ ] signaler les conflits de version ou proposer l'installation de la version de node du paquet per-user pour le rendre system-wide
 
 ---
 
