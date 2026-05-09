@@ -51,7 +51,15 @@ usage()
 	  -l, --list                         Lister les versions installees localement
 	  -s, --set <nodename>               Definir la version active (mode manuel)
 	  -u, --update                       Re-enregistrer toutes les versions dans alternatives
+	                                     (rejouez apres 'npm install -g <pkg>' pour
+	                                     ajouter <pkg> aux alternatives)
 	  -a, --auto                         Basculer en mode automatique (plus haute priorite)
+
+	Actions (paquets npm -g per-user):
+	  --promote-user-globals             [root] Promouvoir les paquets npm -g
+	                                     de \$SUDO_USER vers la couche system-wide
+	  --cleanup-user-globals             [user] Supprimer les paquets per-user
+	                                     deja couverts par la couche system-wide
 
 	Options:
 	  -v, --verbose                      Affichage detaille
@@ -149,6 +157,12 @@ while [ "$#" -gt 0 ]; do
       -u|--update)
 	[ -z "$action" ] || usage 1
 	action=update;;
+      --promote-user-globals)
+	[ -z "$action" ] || usage 1
+	action=promote_user_globals;;
+      --cleanup-user-globals)
+	[ -z "$action" ] || usage 1
+	action=cleanup_user_globals;;
       -s|--set)
 	[ -z "$action" ] || usage 1
 	action="set"
@@ -591,13 +605,12 @@ scan_slaves()
     done | sort -u
 }
 
-# Lister les paquets globaux d'une version
-# Usage: collect_global_packages <version>
+# Lit les paquets globaux d'un repertoire lib/node_modules quelconque.
+# Usage: collect_modules_dir <modules_dir>
 # Remplit les tableaux: pkg_names[], pkg_versions[], pkg_descriptions[]
-collect_global_packages()
+collect_modules_dir()
 {
-    local version="$1"
-    local modules_dir="$top/$version/lib/node_modules"
+    local modules_dir="$1"
 
     pkg_names=()
     pkg_versions=()
@@ -606,14 +619,14 @@ collect_global_packages()
     [ -d "$modules_dir" ] || return
 
     # Paquets non-scoped
+    local pkg_dir name ver desc
     for pkg_dir in "$modules_dir"/*/; do
         [ -d "$pkg_dir" ] || continue
-        local name
         name=$(basename "$pkg_dir")
         case "$name" in
-            npm|corepack) continue ;;
+            npm|corepack|@*) continue ;;  # scoped traites en deuxieme passe
         esac
-        local ver="" desc=""
+        ver="" desc=""
         if [ -f "$pkg_dir/package.json" ]; then
             ver=$(grep -m1 '"version"' "$pkg_dir/package.json" | grep -oP '[\d.]+' | head -1)
             desc=$(grep -m1 '"description"' "$pkg_dir/package.json" | sed 's/.*"description"[[:space:]]*:[[:space:]]*"\(.*\)".*/\1/' | head -c 50)
@@ -624,15 +637,15 @@ collect_global_packages()
     done
 
     # Paquets scoped (@org/pkg)
+    local scope_dir scope base
     for scope_dir in "$modules_dir"/@*/; do
         [ -d "$scope_dir" ] || continue
         for pkg_dir in "$scope_dir"*/; do
             [ -d "$pkg_dir" ] || continue
-            local scope base name
             scope=$(basename "$(dirname "$pkg_dir")")
             base=$(basename "$pkg_dir")
             name="$scope/$base"
-            local ver="" desc=""
+            ver="" desc=""
             if [ -f "$pkg_dir/package.json" ]; then
                 ver=$(grep -m1 '"version"' "$pkg_dir/package.json" | grep -oP '[\d.]+' | head -1)
                 desc=$(grep -m1 '"description"' "$pkg_dir/package.json" | sed 's/.*"description"[[:space:]]*:[[:space:]]*"\(.*\)".*/\1/' | head -c 50)
@@ -642,6 +655,72 @@ collect_global_packages()
             pkg_descriptions+=("$desc")
         done
     done
+}
+
+# Lister les paquets globaux d'une version installee dans la couche 2.
+# Usage: collect_global_packages <version>
+collect_global_packages()
+{
+    collect_modules_dir "$top/$1/lib/node_modules"
+}
+
+# Repertoire personnel d'un utilisateur Unix (passwd[6])
+get_user_home()
+{
+    getent passwd "$1" | cut -d: -f6
+}
+
+# Prefix npm per-user d'un utilisateur. Recherche, dans l'ordre :
+#   1. `sudo -u <user> -H npm config get prefix` (config standard npm)
+#   2. ~/.npm-global (defaut shippe par /etc/profile.d/update-node-alternatives.sh)
+# Refuse les prefixes system-wide pour eviter les boucles. RC 0 si trouve.
+get_user_npm_prefix()
+{
+    local user="$1" home_dir prefix
+    home_dir=$(get_user_home "$user")
+    [ -n "$home_dir" ] || return 1
+
+    if command -v npm >/dev/null 2>&1; then
+        if [ "$(id -un)" = "$user" ]; then
+            prefix=$(npm config get prefix 2>/dev/null) || prefix=
+        else
+            prefix=$(sudo -u "$user" -H npm config get prefix 2>/dev/null) || prefix=
+        fi
+        case "$prefix" in
+            ""|/usr|/usr/local|/usr/local/share/nvm/*) prefix= ;;
+        esac
+        if [ -n "$prefix" ] && [ -d "$prefix/lib/node_modules" ]; then
+            echo "$prefix"
+            return 0
+        fi
+    fi
+
+    if [ -d "$home_dir/.npm-global/lib/node_modules" ]; then
+        echo "$home_dir/.npm-global"
+        return 0
+    fi
+
+    return 1
+}
+
+# Compare deux versions style x.y.z (via dpkg). RC 0 si $1 >= $2.
+version_ge()
+{
+    [ "$1" = "$2" ] && return 0
+    dpkg --compare-versions "$1" ge "$2" 2>/dev/null
+}
+
+# Repertoire lib/node_modules de la version active (alternative `node`).
+# Affiche le chemin sur stdout, RC 0 si une version est active.
+active_node_modules_dir()
+{
+    local current
+    current=$(update-alternatives --query node 2>/dev/null | grep '^Value:' | cut -d' ' -f2)
+    [ -n "$current" ] || return 1
+    local active_version
+    active_version=$(echo "$current" | grep -oP 'v[\d.]+')
+    [ -n "$active_version" ] || return 1
+    echo "$top/$active_version/lib/node_modules"
 }
 
 do_show_setting()
@@ -1078,11 +1157,229 @@ migrate_global_packages()
 }
 
 # ---------------------------------------------------------------------------
+# Promotion per-user -> system-wide / cleanup per-user (Phase 2 f)
+# ---------------------------------------------------------------------------
+
+do_promote_user_globals()
+{
+    if [ -z "${SUDO_USER:-}" ] || [ "$(id -u)" -ne 0 ]; then
+        echo >&2 "$prog: --promote-user-globals doit etre lance via sudo"
+        echo >&2 "  (besoin de \$SUDO_USER pour decouvrir les paquets per-user)"
+        exit 1
+    fi
+
+    local user="$SUDO_USER"
+    local user_prefix
+    if ! user_prefix=$(get_user_npm_prefix "$user"); then
+        echo >&2 "$prog: aucun prefix npm per-user trouve pour '$user'"
+        echo >&2 "  cherche via 'sudo -u $user npm config get prefix' et ~/.npm-global"
+        exit 1
+    fi
+
+    echo ":: Promotion: paquets npm globaux de '$user' vers la couche system-wide"
+    echo "   prefix per-user : $user_prefix"
+
+    collect_modules_dir "$user_prefix/lib/node_modules"
+    local user_names=("${pkg_names[@]}")
+    local user_vers=("${pkg_versions[@]}")
+    local user_descs=("${pkg_descriptions[@]}")
+
+    if [ ${#user_names[@]} -eq 0 ]; then
+        echo "   aucun paquet npm -g per-user"
+        return 0
+    fi
+
+    local sys_modules
+    if ! sys_modules=$(active_node_modules_dir); then
+        echo >&2 "$prog: aucune version Node.js system-wide active"
+        echo >&2 "  Activez d'abord une version : sudo $prog --install <version>"
+        exit 1
+    fi
+
+    declare -A sys_seen=()
+    declare -A sys_ver=()
+    collect_modules_dir "$sys_modules"
+    local i
+    for i in "${!pkg_names[@]}"; do
+        sys_seen[${pkg_names[$i]}]=1
+        sys_ver[${pkg_names[$i]}]="${pkg_versions[$i]}"
+    done
+
+    local candidates=() candidates_args=() name uv sv mark
+    for i in "${!user_names[@]}"; do
+        name="${user_names[$i]}"
+        uv="${user_vers[$i]}"
+        if [ -n "${sys_seen[$name]:-}" ]; then
+            sv="${sys_ver[$name]}"
+            if [ -n "$sv" ] && [ -n "$uv" ] && version_ge "$sv" "$uv"; then
+                continue   # idempotence: deja >= version per-user
+            fi
+            mark="upgrade ${sv:-?} -> ${uv:-?}"
+        else
+            mark="absent system-wide"
+        fi
+        candidates+=("$name@$uv")
+        local desc="$mark"
+        [ -n "${user_descs[$i]}" ] && desc="$desc - ${user_descs[$i]}"
+        candidates_args+=("$name@$uv" "$desc" "ON")
+    done
+
+    if [ ${#candidates[@]} -eq 0 ]; then
+        echo "   tout est deja installe system-wide (>= version per-user)"
+        return 0
+    fi
+
+    if [ "$frontend" = noninteractive ]; then
+        echo "   ${#candidates[@]} paquet(s) candidat(s) a la promotion :"
+        local c
+        for c in "${candidates[@]}"; do
+            echo "     $c"
+        done
+        echo "   (DEBIAN_FRONTEND=noninteractive : aucune action effectuee)"
+        return 0
+    fi
+
+    local selected
+    if ! selected=$(dialog_checklist \
+        "Promotion per-user -> system-wide" \
+        "Paquets npm -g de '$user' a installer system-wide :" \
+        "${candidates_args[@]}"); then
+        echo "   annule"
+        return 0
+    fi
+
+    [ -n "$selected" ] || { echo "   aucune selection"; return 0; }
+
+    local -a to_install
+    read -ra to_install <<< "$selected"
+    [ ${#to_install[@]} -gt 0 ] || { echo "   aucune selection"; return 0; }
+
+    echo ":: Installation system-wide de ${#to_install[@]} paquet(s)..."
+    # Garde-fou : NE PAS heriter du .npmrc utilisateur (registry, tokens
+    # privees, etc.). HOME=/root force npm a utiliser /root/.npmrc et
+    # /etc/npmrc, jamais $SUDO_USER/.npmrc.
+    if ! HOME=/root npm install -g "${to_install[@]}"; then
+        echo >&2 "  -> erreur lors de l'installation"
+        exit 1
+    fi
+
+    echo ":: Mise a jour des alternatives (slaves dynamiques)..."
+    do_update
+
+    echo
+    echo ":: Promotion terminee."
+
+    if [ "$frontend" != noninteractive ] && \
+       dialog_yesno "Cleanup per-user" \
+         "Supprimer maintenant les copies per-user des paquets promus ?\n\nLa version system-wide les remplace via PATH (priorite definie par /etc/profile.d/update-node-alternatives.sh)."; then
+        echo ":: Bascule vers --cleanup-user-globals (en tant que '$user')..."
+        exec sudo -u "$user" -H -- "$0" --cleanup-user-globals
+    fi
+}
+
+do_cleanup_user_globals()
+{
+    if [ "$(id -u)" -eq 0 ]; then
+        echo >&2 "$prog: --cleanup-user-globals doit etre lance SANS sudo"
+        echo >&2 "  (cette action ne touche que vos paquets per-user)"
+        exit 1
+    fi
+
+    local self
+    self=$(id -un)
+    local user_prefix
+    if ! user_prefix=$(get_user_npm_prefix "$self"); then
+        echo >&2 "$prog: aucun prefix npm per-user trouve"
+        exit 1
+    fi
+
+    echo ":: Cleanup: paquets per-user couvrables par la couche system-wide"
+    echo "   prefix per-user : $user_prefix"
+
+    collect_modules_dir "$user_prefix/lib/node_modules"
+    local user_names=("${pkg_names[@]}")
+    local user_vers=("${pkg_versions[@]}")
+    local user_descs=("${pkg_descriptions[@]}")
+
+    if [ ${#user_names[@]} -eq 0 ]; then
+        echo "   aucun paquet npm -g per-user"
+        return 0
+    fi
+
+    local sys_modules
+    if ! sys_modules=$(active_node_modules_dir); then
+        echo >&2 "$prog: aucune version Node.js system-wide active"
+        exit 1
+    fi
+
+    declare -A sys_ver=()
+    collect_modules_dir "$sys_modules"
+    local i
+    for i in "${!pkg_names[@]}"; do
+        sys_ver[${pkg_names[$i]}]="${pkg_versions[$i]}"
+    done
+
+    local candidates=() candidates_args=() name uv sv
+    for i in "${!user_names[@]}"; do
+        name="${user_names[$i]}"
+        uv="${user_vers[$i]}"
+        sv="${sys_ver[$name]:-}"
+        [ -n "$sv" ] || continue          # absent system-wide -> on garde
+        [ -n "$uv" ] || continue          # version per-user inconnue -> garde
+        if ! version_ge "$sv" "$uv"; then
+            continue                       # system plus ancien -> garde
+        fi
+        local desc="system $sv >= user $uv"
+        [ -n "${user_descs[$i]}" ] && desc="$desc - ${user_descs[$i]}"
+        candidates+=("$name")
+        candidates_args+=("$name" "$desc" "ON")
+    done
+
+    if [ ${#candidates[@]} -eq 0 ]; then
+        echo "   rien a nettoyer (aucun paquet per-user couvert par system-wide)"
+        return 0
+    fi
+
+    if [ "$frontend" = noninteractive ]; then
+        echo "   ${#candidates[@]} paquet(s) couvrable(s) par la couche system-wide :"
+        local c
+        for c in "${candidates[@]}"; do
+            echo "     $c"
+        done
+        echo "   (DEBIAN_FRONTEND=noninteractive : aucune action effectuee)"
+        return 0
+    fi
+
+    local selected
+    if ! selected=$(dialog_checklist \
+        "Cleanup paquets per-user" \
+        "Paquets npm -g per-user a desinstaller (deja couverts system-wide) :" \
+        "${candidates_args[@]}"); then
+        echo "   annule"
+        return 0
+    fi
+
+    [ -n "$selected" ] || { echo "   aucune selection"; return 0; }
+
+    local -a to_remove
+    read -ra to_remove <<< "$selected"
+    [ ${#to_remove[@]} -gt 0 ] || { echo "   aucune selection"; return 0; }
+
+    echo ":: Desinstallation per-user de ${#to_remove[@]} paquet(s)..."
+    if ! npm uninstall -g "${to_remove[@]}"; then
+        echo >&2 "  -> erreur lors de la desinstallation"
+        exit 1
+    fi
+
+    echo ":: Cleanup termine."
+}
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
 # Actions ne necessitant pas root
-readonly NO_ROOT_ACTIONS="list list_remote list_packages"
+readonly NO_ROOT_ACTIONS="list list_remote list_packages cleanup_user_globals"
 
 if ! echo "$NO_ROOT_ACTIONS" | grep -qw "$action"; then
     if [ "$(id -u)" -ne 0 ]; then
