@@ -16,10 +16,20 @@ sur readline classique).
 
 - Installer, supprimer et lister les versions Node.js via NVM
 - Basculer la version active system-wide avec `update-alternatives` (mode manuel ou automatique)
-- `node` est le lien maître ; `npm`, `npx`, `corepack` sont esclaves
+- `node` est le lien maître ; les esclaves sont découverts dynamiquement
+  en scannant `<version>/bin/`, ce qui permet d'exposer sous
+  `/usr/local/bin/` les binaires déposés par `sudo npm install -g`
+  (`ng`, `tsc`, `pnpm`, ...)
 - Priorité calculée automatiquement depuis la version : `majeur * 100 + mineur`
   (ex. `v22.14.0` → `2214`)
 - Migration interactive des paquets npm globaux entre versions (checklist)
+- Promotion des paquets `npm install -g` per-user vers la couche
+  system-wide (`--promote-user-globals`) et nettoyage des copies
+  per-user redondantes (`--cleanup-user-globals`)
+- Livre `/etc/profile.d/update-node-alternatives.sh` pour qu'un
+  `npm i -g` utilisateur atterrisse dans `~/.npm-global` et écrase le
+  binaire system-wide via l'ordre de `PATH`
+- Complétion bash sous `/usr/share/bash-completion/completions/`
 - Honore `DEBIAN_FRONTEND` (cf. [`debconf(7)`](https://manpages.debian.org/debconf.7))&nbsp;:
   supporte `dialog` (whiptail/dialog), `readline`, `gnome` (zenity), `kde`
   (kdialog) et `noninteractive`. Auto-détecté si non défini.
@@ -65,7 +75,15 @@ Actions alternatives :
   -l, --list                         Lister les versions installées
   -s, --set <nodename>               Définir la version active (mode manuel)
   -u, --update                       Ré-enregistrer toutes les versions
+                                       (rejouer après `npm install -g <pkg>`
+                                       pour exposer <pkg> sous /usr/local/bin)
   -a, --auto                         Basculer en mode automatique (plus haute priorité)
+
+Paquets npm -g per-user :
+  --promote-user-globals             [root] Promouvoir les paquets `npm i -g`
+                                       de $SUDO_USER vers la couche system-wide
+  --cleanup-user-globals             [user] Supprimer les paquets per-user
+                                       déjà couverts system-wide
 
 Options :
   -v, --verbose                      Affichage détaillé

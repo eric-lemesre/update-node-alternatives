@@ -16,10 +16,19 @@ symlinks). A debconf-style interactive frontend is provided via
 
 - Install, remove and list Node.js versions via NVM
 - Switch the active version system-wide with `update-alternatives` (manual or auto mode)
-- `node` is the master link; `npm`, `npx`, `corepack` are slaves
+- `node` is the master link; the slaves are discovered dynamically by
+  scanning `<version>/bin/`, so binaries deposited by `sudo npm install -g`
+  (`ng`, `tsc`, `pnpm`, ...) are exposed under `/usr/local/bin/`
 - Priority auto-computed from the Node.js version: `major * 100 + minor`
   (e.g. `v22.14.0` → `2214`)
 - Interactive migration of global npm packages between versions (checklist)
+- Promote per-user `npm install -g` packages into the system-wide layer
+  (`--promote-user-globals`) and clean up the redundant per-user copies
+  (`--cleanup-user-globals`)
+- Ships `/etc/profile.d/update-node-alternatives.sh` so a regular user's
+  `npm i -g` automatically lands in `~/.npm-global` and overrides the
+  system-wide binary via `PATH` order
+- Bash completion under `/usr/share/bash-completion/completions/`
 - Honours `DEBIAN_FRONTEND` (see [`debconf(7)`](https://manpages.debian.org/debconf.7));
   supports `dialog` (whiptail/dialog), `readline`, `gnome` (zenity), `kde`
   (kdialog) and `noninteractive`. Auto-detected when unset.
@@ -65,7 +74,15 @@ update-alternatives actions:
   -l, --list                         List installed versions
   -s, --set <nodename>               Set the active version (manual mode)
   -u, --update                       Re-register all versions with alternatives
+                                       (replay after `npm install -g <pkg>`
+                                       to expose <pkg> under /usr/local/bin)
   -a, --auto                         Switch to automatic mode (highest priority)
+
+Per-user globals:
+  --promote-user-globals             [root] Promote $SUDO_USER's `npm i -g`
+                                       packages into the system-wide layer
+  --cleanup-user-globals             [user] Drop per-user `npm i -g` packages
+                                       already covered system-wide
 
 Options:
   -v, --verbose                      Verbose output

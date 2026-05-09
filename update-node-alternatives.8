@@ -1,4 +1,4 @@
-.TH UPDATE-NODE-ALTERNATIVES 8 "2026-05-09" "update-node-alternatives" "System Administration"
+.TH UPDATE-NODE-ALTERNATIVES 8 "2026-05-09" "update-node-alternatives 0.4" "System Administration"
 .SH NAME
 update-node-alternatives \- manage system-wide Node.js versions via NVM and update-alternatives
 .SH SYNOPSIS
@@ -51,6 +51,37 @@ is computed from the Node.js version: \fImajor * 100 + minor\fR (e.g. v22.14.0 â
 When running in
 .B auto
 mode, the highest priority version wins.
+.PP
+.B Slaves are discovered dynamically.
+On every
+.BR \-\-install ", " \-\-set ", " \-\-auto " or " \-\-update ,
+the contents of
+.IR /usr/local/share/nvm/versions/node/<version>/bin/
+are scanned and every executable other than
+.B node
+is registered as a slave alternative. Binaries installed system-wide
+through
+.B sudo npm install -g
+.RB ( ng ", " tsc ", " pnpm ", ...)
+therefore become
+.IR /usr/local/bin/<name>
+symlinks managed by
+.BR update-alternatives (1)
+without any change to the script.
+.SS Per-user override
+.B /etc/profile.d/update-node-alternatives.sh
+exports
+.B NPM_CONFIG_PREFIX=$HOME/.npm-global
+(unless the user already configured one) and prefixes
+.B $NPM_CONFIG_PREFIX/bin
+to
+.BR PATH .
+A regular user can then run
+.B npm install -g <pkg>
+without
+.BR sudo (8)
+to override the system-wide binary; PATH order alone arbitrates which
+copy wins, no custom logic in the wrapper.
 .SH ACTIONS
 Exactly one action must be provided.
 .SS NVM actions
@@ -120,12 +151,59 @@ migrate the previous version's global packages.
 .TP
 .BR \-u ", " \-\-update
 Re-register every installed Node.js version with
-.BR update-alternatives (1).
-Useful after manually copying a version into
-.IR /usr/local/share/nvm/versions/node/ .
+.BR update-alternatives (1),
+re-scanning
+.IR <version>/bin/
+to pick up new slaves. Useful after manually copying a version into
+.I /usr/local/share/nvm/versions/node/
+or after a
+.B sudo npm install -g
+that produced a binary you want exposed under
+.IR /usr/local/bin/ .
+There is no automatic post-\fBnpm\fR hook by design; this is the
+explicit re-sync entry point.
 .TP
 .BR \-a ", " \-\-auto
 Switch the node alternative back to automatic mode (highest priority wins).
+.SS Per-user globals
+.TP
+.B \-\-promote\-user\-globals
+Run as root via
+.BR sudo (8)
+(the script refuses without
+.BR \%$SUDO_USER ).
+Discovers the npm
+.I prefix
+of the invoking user via
+.B sudo -u $SUDO_USER -H npm config get prefix
+(falling back to
+.IR \%~/.npm-global ),
+lists every per-user
+.B npm install -g
+package not already covered system-wide at >= the per-user version,
+shows an interactive checklist, then re-installs the selected packages
+in the system-wide layer. The system-wide install runs with
+.B HOME=/root
+so that the user's
+.I .npmrc
+(registry, authentication tokens, ...) is never reused for the root
+install. Calls
+.BR \-\-update
+at the end so the freshly installed binaries become alternatives.
+Optionally chains into
+.B \-\-cleanup\-user\-globals
+under the original user via
+.BR \%"exec\ sudo\ -u\ $SUDO_USER" .
+.TP
+.B \-\-cleanup\-user\-globals
+Run as a regular user (refuses if invoked as root). Lists every
+per-user
+.B npm install -g
+package for which the system-wide layer currently provides a >= version
+and offers to remove the redundant per-user copies via
+.BR "npm uninstall -g" .
+Idempotent: a package whose per-user version is newer or which has no
+system-wide counterpart is never offered for removal.
 .SH OPTIONS
 .TP
 .BR \-v ", " \-\-verbose
@@ -177,6 +255,32 @@ Installed Node.js versions (one directory per version).
 .TP
 .I /usr/local/share/nvm/versions/node_binaries.info
 State file listing binaries currently registered as alternatives.
+The first line
+.RB ( "Binaries=node\ npm\ npx\ ..." )
+is the union across every installed version (read at startup to know
+which alternatives to remove on re-register, and consumed by
+.IR postrm
+on
+.B apt purge
+to drop every dynamic slave). Subsequent
+.B Binaries.<version>=...
+lines record the slaves of each individual version for diagnostics.
+.TP
+.I /etc/profile.d/update-node-alternatives.sh
+POSIX-sh snippet sourced on login: defaults
+.B NPM_CONFIG_PREFIX
+to
+.IR \%~/.npm-global
+and prefixes
+.B $NPM_CONFIG_PREFIX/bin
+to
+.BR PATH .
+.TP
+.I /usr/share/bash-completion/completions/update-node-alternatives
+.BR bash (1)
+completion script (installed verbatim under
+.I $(PREFIX)/share/bash-completion/completions/
+when building from source).
 .TP
 .I /usr/local/bin/node
 .TQ
@@ -189,13 +293,18 @@ Symlinks managed by
 .BR update-alternatives (1)
 (node is the master, the rest are slaves).
 .SH PRIVILEGES
-The
-.BR \-\-list ", " \-\-list\-remote " and " \-\-list\-packages
-actions can be run as a regular user. Every other action modifies system
-state (NVM store or
+.BR \-\-list ", " \-\-list\-remote ", " \-\-list\-packages " and "
+.B \-\-cleanup\-user\-globals
+must be run as a regular user (the cleanup action explicitly refuses
+when invoked as root). Every other action modifies system state (NVM
+store or
 .BR update-alternatives (1)
 database) and must be run as root, typically via
 .BR sudo (8).
+.B \-\-promote\-user\-globals
+additionally requires
+.B \%$SUDO_USER
+to be set so that the source per-user npm prefix can be discovered.
 .SH EXAMPLES
 Install the latest Node.js 22 and register it:
 .PP
@@ -226,6 +335,35 @@ Return to automatic mode (highest priority wins):
 .RS 4
 sudo update-node-alternatives \-\-auto
 .RE
+.PP
+After a system-wide
+.BR "npm install -g" ,
+expose the freshly installed binaries under
+.IR /usr/local/bin/ :
+.PP
+.RS 4
+sudo npm install -g @angular/cli
+.br
+sudo update-node-alternatives \-\-update
+.RE
+.PP
+Promote a user's per-user
+.BR "npm install -g"
+packages into the system-wide layer (and offer to clean up the per-user
+copies right after):
+.PP
+.RS 4
+sudo update-node-alternatives \-\-promote\-user\-globals
+.RE
+.PP
+Drop per-user
+.BR "npm install -g"
+packages that the system-wide layer already covers at the same or a
+newer version:
+.PP
+.RS 4
+update-node-alternatives \-\-cleanup\-user\-globals
+.RE
 .SH ENVIRONMENT
 .TP
 .B DEBIAN_FRONTEND
@@ -234,6 +372,28 @@ When set to
 or
 .BR noninteractive ,
 selects the interactive frontend. Other values fall back to auto-detection.
+Under
+.BR noninteractive ,
+.B \-\-promote\-user\-globals
+and
+.B \-\-cleanup\-user\-globals
+print a candidate report and exit without modifying anything.
+.TP
+.B NPM_CONFIG_PREFIX
+Read by
+.BR npm (1)
+to determine the install root for
+.BR "npm install -g" .
+The shipped
+.I /etc/profile.d/update-node-alternatives.sh
+sets it to
+.IR \%~/.npm-global
+unless the user already configured one.
+.TP
+.B SUDO_USER
+Required by
+.BR \-\-promote\-user\-globals
+to identify which user's npm globals to promote.
 .SH SEE ALSO
 .BR update-alternatives (1),
 .BR update-java-alternatives (8),
