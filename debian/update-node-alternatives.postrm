@@ -16,7 +16,22 @@ set -e
 
 case "$1" in
     purge)
-        for alt in node npm npx corepack; do
+        # Read the union of binaries registered as alternatives by
+        # do_update() (master + dynamic slaves like ng, tsc, ...). If
+        # the state file is missing, fall back to the binaries every
+        # Node.js install ships.
+        info="/usr/local/share/nvm/versions/node_binaries.info"
+        bins=""
+        if [ -r "$info" ]; then
+            bins=$(awk -F= '$1 == "Binaries" { print $2; exit }' "$info" 2>/dev/null)
+        fi
+        [ -n "$bins" ] || bins="node npm npx corepack"
+        case " $bins " in
+            *" node "*) ;;
+            *) bins="node $bins" ;;
+        esac
+
+        for alt in $bins; do
             update-alternatives --remove-all "$alt" 2>/dev/null || true
         done
 

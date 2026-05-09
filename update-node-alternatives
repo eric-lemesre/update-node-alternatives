@@ -27,9 +27,6 @@ readonly top="${NVM_DIR}/versions/node"
 readonly ALTBIN_DIR="/usr/local/bin"
 readonly node_info="$NVM_DIR/versions/node_binaries.info"
 
-# Binaires garantis dans toute installation Node.js (utilises comme slaves)
-readonly CORE_BINARIES=(npm npx corepack)
-
 declare -A NEW_BIN
 declare -A OLD_BIN
 
@@ -573,6 +570,27 @@ list_installed_versions()
     done
 }
 
+# Lister les binaires d'une version (slaves potentiels), sans 'node' (master).
+# Chaque appel a do_update() reevalue cette liste pour capter les binaires
+# poses par 'npm install -g <pkg>' (ng, tsc, pnpm, yarn, ...).
+# Usage: scan_slaves <NODEBIN_DIR>
+scan_slaves()
+{
+    local bin_dir="$1"
+    local f name
+    [ -d "$bin_dir" ] || return 0
+    for f in "$bin_dir"/*; do
+        [ -e "$f" ] || continue
+        [ -d "$f" ] && continue
+        [ -x "$f" ] || continue
+        name=$(basename "$f")
+        case "$name" in
+            node|.*) continue ;;
+        esac
+        printf '%s\n' "$name"
+    done | sort -u
+}
+
 # Lister les paquets globaux d'une version
 # Usage: collect_global_packages <version>
 # Remplit les tableaux: pkg_names[], pkg_versions[], pkg_descriptions[]
@@ -885,6 +903,7 @@ do_update()
 
     NEW_BIN=()
     NEW_BIN[node]=1
+    declare -A PER_VER_BIN=()
 
     for node_dir in "$top"/v*/; do
         [ -d "$node_dir" ] || continue
@@ -901,18 +920,34 @@ do_update()
         local cmd=(update-alternatives "${uaopts[@]}" --install
             "$ALTBIN_DIR/node" node "$NODEBIN_DIR/node" "$priority")
 
-        for slave_bin in "${CORE_BINARIES[@]}"; do
-            if [ -x "$NODEBIN_DIR/$slave_bin" ]; then
-                cmd+=(--slave "$ALTBIN_DIR/$slave_bin" "$slave_bin" "$NODEBIN_DIR/$slave_bin")
-                NEW_BIN[$slave_bin]=1
-            fi
-        done
+        local slave_bins=() slave_bin
+        while IFS= read -r slave_bin; do
+            [ -n "$slave_bin" ] || continue
+            cmd+=(--slave "$ALTBIN_DIR/$slave_bin" "$slave_bin" "$NODEBIN_DIR/$slave_bin")
+            NEW_BIN[$slave_bin]=1
+            slave_bins+=("$slave_bin")
+        done < <(scan_slaves "$NODEBIN_DIR")
+
+        PER_VER_BIN[$node_version]="${slave_bins[*]}"
+        vecho "     slaves: ${slave_bins[*]:-<none>}"
 
         "${cmd[@]}"
     done
 
-    vecho "Binaries=${!NEW_BIN[*]}"
-    echo "Binaries=${!NEW_BIN[*]}" > "$node_info"
+    # node_binaries.info: union sur la premiere ligne (compat 0.2/0.3),
+    # puis une ligne Binaries.<version>=... par version pour permettre
+    # des diagnostics fins (et un futur cleanup chirurgical par version).
+    local sorted_union
+    sorted_union=$(printf '%s\n' "${!NEW_BIN[@]}" | sort | tr '\n' ' ')
+    sorted_union=${sorted_union% }
+    {
+        echo "Binaries=$sorted_union"
+        local v
+        for v in $(printf '%s\n' "${!PER_VER_BIN[@]}" | sort); do
+            echo "Binaries.${v}=${PER_VER_BIN[$v]}"
+        done
+    } > "$node_info"
+    vecho "Binaries=$sorted_union"
 
     echo "Alternatives mises a jour. Versions enregistrees:"
     update-alternatives --list node 2>/dev/null | while read -r path; do
