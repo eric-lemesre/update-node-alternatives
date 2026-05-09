@@ -1,0 +1,57 @@
+update-node-alternatives for Debian
+===================================
+
+This package wraps update-alternatives(1) and the bundled nvm in order
+to manage system-wide Node.js versions. A few packaging details are
+worth recording so that future maintainers don't have to reverse them
+out of the maintainer scripts.
+
+Why dh_installalternatives is NOT used
+--------------------------------------
+
+dh_installalternatives expects the master link, slaves and target
+paths to be known at packaging time, so it can generate a static
+postinst that registers the alternative on every install. That model
+does not fit this package: the targets live under
+
+    /usr/local/share/nvm/versions/node/vX.Y.Z/bin/{node,npm,npx,corepack}
+
+and that directory does not exist when the package is installed --
+it is created later, at runtime, when the user runs
+`update-node-alternatives --install <version>`. The version (and
+therefore the path and priority) are also chosen by the user, not
+known upfront.
+
+The package therefore registers and removes alternatives at runtime,
+from inside the wrapper script itself. The only static maintainer
+script is debian/postrm, which calls
+
+    update-alternatives --remove-all <name>
+
+for node, npm, npx and corepack on `purge`, so that no dangling
+entries stay behind.
+
+postinst (debconf scenario 1.b)
+-------------------------------
+
+The package optionally offers to install a default Node.js version at
+`apt install` time via debconf. The question and behaviour are
+documented in debian/templates and debian/postinst:
+
+  * latest LTS  -- runs `update-node-alternatives --install lts/*`
+  * latest      -- runs `update-node-alternatives --install node`
+  * none        -- skip; the user installs versions manually later
+  * custom      -- ask for a specific version string
+
+Under DEBIAN_FRONTEND=noninteractive the question is skipped (defaults
+to "none"); no Node.js version is downloaded silently.
+
+postrm (purge of /usr/local/share/nvm/)
+---------------------------------------
+
+The /usr/local/share/nvm/ store sits outside dpkg's tree (it lives
+under /usr/local) and contains every Node.js version the admin has
+ever installed. Wiping it on every `apt purge` would be surprising
+and destructive, so the package stores the admin's preference at
+install time (debian/templates: nvm-purge-on-purge) and re-confirms it
+at purge time before deleting anything. Defaults to "no".
