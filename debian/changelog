@@ -1,3 +1,34 @@
+update-node-alternatives (0.3.0~UNRELEASED) UNRELEASED; urgency=medium
+
+  * Rename source and binary package: update-node-alternative ->
+    update-node-alternatives. The trailing 's' aligns with
+    update-alternatives(1), which the wrapper extends. Renames the
+    script, its man page, the package data directory
+    (/usr/share/update-node-alternatives/), and updates Homepage,
+    Vcs-* URLs in debian/control. There is no transitional package:
+    the old name was never published.
+  * debconf scenario 1.b. New templates ask, at first install:
+    - which Node.js version to install by default (latest LTS / latest /
+      none / custom); default 'none' so DEBIAN_FRONTEND=noninteractive
+      never silently downloads binaries;
+    - whether 'apt purge' should later wipe /usr/local/share/nvm/.
+    The purge-nvm-store answer is re-confirmed at purge time so the
+    admin sees the current default before /usr/local/share/nvm/ is
+    deleted. Pre-Depends on debconf (>= 0.5) | debconf-2.0,
+    Build-Depends on po-debconf.
+  * debian/manpages: hand the man page to dh_installman for compression
+    and permissions. The Makefile gains an INSTALL_MAN flag (default 1)
+    that debian/rules sets to 0 so make install behaviour is unchanged
+    out-of-package.
+  * debian/upstream/metadata: list Repository, Repository-Browse,
+    Bug-Database and Bug-Submit URLs (DEP-12, lintian suggestion).
+  * debian/README.Debian: document the package contract -- why
+    dh_installalternatives is not used (alternative targets are created
+    at runtime under /usr/local/share/nvm/), and how the purge policy
+    works.
+
+ -- Eric Lemesre <eric.lemesre@gmail.com>  Sat, 09 May 2026 15:50:00 +0200
+
 update-node-alternative (0.2.0) unstable; urgency=medium
 
   * Initial release.
