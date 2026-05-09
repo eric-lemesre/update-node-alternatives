@@ -8,9 +8,11 @@ A system-wide Node.js version manager for Debian, in the spirit of
 It combines the [NVM](https://github.com/nvm-sh/nvm) infrastructure
 (to download and store Node.js binaries) with Debian's
 [`update-alternatives(1)`](https://manpages.debian.org/update-alternatives)
-mechanism (to switch the `/usr/local/bin/{node,npm,npx,corepack}`
-symlinks). A debconf-style interactive frontend is provided via
-`whiptail` (with a `dialog` or plain readline fallback).
+mechanism (to switch the system-wide `node` symlink — slaves like
+`npm`, `npx`, `corepack`, plus any binary deposited by `sudo npm
+install -g` for that version, are discovered dynamically). A
+debconf-style interactive frontend is provided via `whiptail` (with
+a `dialog` or plain readline fallback).
 
 ## Features
 
@@ -114,6 +116,18 @@ sudo update-node-alternatives --reinstall-packages --from v20.18.1 --to v22.14.0
 
 # Switch to auto mode (highest priority wins)
 sudo update-node-alternatives --auto
+
+# After a system-wide `npm install -g`, expose <pkg> under /usr/local/bin
+sudo npm install -g @angular/cli
+sudo update-node-alternatives --update
+
+# Promote $SUDO_USER's per-user `npm i -g` packages into the system-wide
+# layer (and offer to clean up the per-user copies right after)
+sudo update-node-alternatives --promote-user-globals
+
+# Drop per-user `npm i -g` packages already covered system-wide at
+# the same or a newer version
+update-node-alternatives --cleanup-user-globals
 ```
 
 ## Layout
@@ -122,10 +136,13 @@ sudo update-node-alternatives --auto
 /usr/local/share/nvm/                 # system-wide NVM
   nvm.sh, nvm-exec
   versions/node/vX.Y.Z/               # installed Node.js versions
-  versions/node_binaries.info         # state file
+  versions/node_binaries.info         # state file (union + per-version)
 /usr/local/sbin/update-node-alternatives
-/usr/local/bin/{node,npm,npx,corepack}   # symlinks managed by update-alternatives
+/usr/local/bin/node                   # master symlink (update-alternatives)
+/usr/local/bin/{npm,npx,corepack,...} # dynamic slaves (also ng, tsc, ...)
 /usr/local/share/man/man8/update-node-alternatives.8
+/etc/profile.d/update-node-alternatives.sh           # NPM_CONFIG_PREFIX + PATH
+/usr/share/bash-completion/completions/update-node-alternatives
 ```
 
 ## Dependencies
