@@ -1,16 +1,16 @@
 #!/bin/sh
 # postrm script for update-node-alternatives
 #
-# Drops the update-alternatives entries that update-node-alternatives
-# may have registered for node/npm/npx/corepack. These are created at
-# runtime when a user runs `update-node-alternatives --install <ver>`
-# (not by this maintainer script), so they survive a plain `remove`
-# and are only wiped on `purge`.
+# On purge:
+#   - drops the update-alternatives entries that update-node-alternatives
+#     may have registered for node/npm/npx/corepack at runtime;
+#   - re-confirms via debconf whether to wipe /usr/local/share/nvm/
+#     (the Node.js versions store) and acts on the answer.
 #
-# The /usr/local/share/nvm/ store (every installed Node.js version) is
-# left in place even on purge, since it lives outside /usr and may
-# matter to the local administrator. Use `make purge` (manual install)
-# or remove it by hand if a clean slate is wanted.
+# The store lives outside /usr (under /usr/local) and the admin's
+# preference was recorded at install time
+# (update-node-alternatives/purge-nvm-store), so this only re-asks for
+# explicit confirmation -- with the previously chosen value preselected.
 
 set -e
 
@@ -19,6 +19,21 @@ case "$1" in
         for alt in node npm npx corepack; do
             update-alternatives --remove-all "$alt" 2>/dev/null || true
         done
+
+        if [ -e /usr/share/debconf/confmodule ]; then
+            . /usr/share/debconf/confmodule
+
+            # Re-ask the question with the previously stored value as
+            # the default. The user can change their mind here.
+            db_input high update-node-alternatives/purge-nvm-store || true
+            db_go || true
+
+            db_get update-node-alternatives/purge-nvm-store || RET=false
+            if [ "$RET" = "true" ] && [ -d /usr/local/share/nvm ]; then
+                echo "Removing /usr/local/share/nvm/ (every installed Node.js version)..."
+                rm -rf /usr/local/share/nvm
+            fi
+        fi
         ;;
 
     remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)

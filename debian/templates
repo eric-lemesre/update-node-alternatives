@@ -1,0 +1,37 @@
+Template: update-node-alternatives/default-version
+Type: select
+Choices: latest LTS, latest, none, custom
+Default: none
+_Description: Default Node.js version to install:
+ update-node-alternatives can download a Node.js version through the
+ bundled nvm and register it as the system-wide alternative right after
+ the package is configured.
+ .
+  - "latest LTS" installs the most recent Long-Term Support release;
+  - "latest" installs the most recent Node.js release;
+  - "none" leaves the system without a Node.js version (the default);
+  - "custom" lets you type a specific version string (e.g. v22.14.0,
+    lts/jod, 20).
+ .
+ Choosing "none" is always safe: you can install or change the active
+ version later with `update-node-alternatives --install <version>`.
+
+Template: update-node-alternatives/custom-version
+Type: string
+_Description: Custom Node.js version to install:
+ Type the Node.js version string to install. Anything accepted by
+ `update-node-alternatives --install` (and ultimately by nvm) works:
+ a major number (22), a full version (v22.14.0), or an alias
+ (lts/jod, lts/*, node).
+
+Template: update-node-alternatives/purge-nvm-store
+Type: boolean
+Default: false
+_Description: Remove all installed Node.js versions on apt purge?
+ update-node-alternatives stores Node.js versions under
+ /usr/local/share/nvm/, outside dpkg's tree. By default `apt purge`
+ leaves that store untouched.
+ .
+ Answer "yes" to make `apt purge` also delete /usr/local/share/nvm/,
+ along with every Node.js version installed through this package.
+ The choice is recorded now and re-confirmed at purge time.

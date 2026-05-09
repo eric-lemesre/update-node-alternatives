@@ -1,0 +1,24 @@
+#!/bin/sh
+# config script for update-node-alternatives
+#
+# Asks the admin which (if any) Node.js version to install at first
+# configuration, plus whether `apt purge` should later wipe the
+# /usr/local/share/nvm/ store along with the package.
+
+set -e
+
+. /usr/share/debconf/confmodule
+
+db_input high update-node-alternatives/default-version || true
+db_go || true
+
+db_get update-node-alternatives/default-version
+if [ "$RET" = "custom" ]; then
+    db_input high update-node-alternatives/custom-version || true
+    db_go || true
+fi
+
+db_input medium update-node-alternatives/purge-nvm-store || true
+db_go || true
+
+exit 0

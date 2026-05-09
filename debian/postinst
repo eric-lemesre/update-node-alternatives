@@ -1,0 +1,50 @@
+#!/bin/sh
+# postinst script for update-node-alternatives
+#
+# After the package files are in place, optionally install a default
+# Node.js version through `update-node-alternatives --install`. The
+# choice was recorded by debian/config; this script just acts on it.
+
+set -e
+
+. /usr/share/debconf/confmodule
+
+case "$1" in
+    configure)
+        db_get update-node-alternatives/default-version
+        choice="$RET"
+
+        version=
+        case "$choice" in
+            'latest LTS') version='lts/*' ;;
+            'latest')     version='node' ;;
+            'custom')
+                db_get update-node-alternatives/custom-version
+                version="$RET"
+                ;;
+            'none'|'')    version= ;;
+            *)            version= ;;
+        esac
+
+        if [ -n "$version" ]; then
+            echo "Installing Node.js '$version' via update-node-alternatives..."
+            if ! DEBIAN_FRONTEND=noninteractive \
+                update-node-alternatives --install "$version"; then
+                echo >&2 "update-node-alternatives --install '$version' failed."
+                echo >&2 "You can rerun it later: sudo update-node-alternatives --install <version>"
+            fi
+        fi
+        ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0
