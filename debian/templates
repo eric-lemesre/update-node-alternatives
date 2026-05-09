@@ -32,6 +32,6 @@ _Description: Remove all installed Node.js versions on apt purge?
  /usr/local/share/nvm/, outside dpkg's tree. By default `apt purge`
  leaves that store untouched.
  .
- Answer "yes" to make `apt purge` also delete /usr/local/share/nvm/,
+ When enabled, `apt purge` will also delete /usr/local/share/nvm/,
  along with every Node.js version installed through this package.
  The choice is recorded now and re-confirmed at purge time.
