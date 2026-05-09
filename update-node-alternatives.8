@@ -1,13 +1,13 @@
-.TH UPDATE-NODE-ALTERNATIVE 8 "2026-04-20" "update-node-alternative" "System Administration"
+.TH UPDATE-NODE-ALTERNATIVES 8 "2026-05-09" "update-node-alternatives" "System Administration"
 .SH NAME
-update-node-alternative \- manage system-wide Node.js versions via NVM and update-alternatives
+update-node-alternatives \- manage system-wide Node.js versions via NVM and update-alternatives
 .SH SYNOPSIS
-.B update-node-alternative
+.B update-node-alternatives
 .RI [ options ]
 .I action
 .RI [ arguments ]
 .SH DESCRIPTION
-.B update-node-alternative
+.B update-node-alternatives
 manages multiple Node.js versions installed system-wide. It combines the
 .BR nvm (1)
 infrastructure (to download and store Node.js binaries under
@@ -165,8 +165,9 @@ failure.
 .SH FILES
 .TP
 .I /usr/local/share/nvm/
-System-wide NVM installation (provided by
-.IR install\-node\-alternative.sh ).
+System-wide NVM installation (created by the script on first run, or by
+.B make install
+when installing from source).
 .TP
 .I /usr/local/share/nvm/nvm.sh
 NVM shell library sourced by the script.
@@ -199,31 +200,31 @@ database) and must be run as root, typically via
 Install the latest Node.js 22 and register it:
 .PP
 .RS 4
-sudo update-node-alternative \-\-install 22
+sudo update-node-alternatives \-\-install 22
 .RE
 .PP
 List available LTS releases:
 .PP
 .RS 4
-update-node-alternative \-\-list\-remote \-\-lts
+update-node-alternatives \-\-list\-remote \-\-lts
 .RE
 .PP
 Upgrade from v20.18.1 to the latest v22, migrating global packages:
 .PP
 .RS 4
-sudo update-node-alternative \-\-upgrade 22 \-\-from v20.18.1
+sudo update-node-alternatives \-\-upgrade 22 \-\-from v20.18.1
 .RE
 .PP
 Switch the active version without touching anything else:
 .PP
 .RS 4
-sudo update-node-alternative \-\-set v22.14.0
+sudo update-node-alternatives \-\-set v22.14.0
 .RE
 .PP
 Return to automatic mode (highest priority wins):
 .PP
 .RS 4
-sudo update-node-alternative \-\-auto
+sudo update-node-alternatives \-\-auto
 .RE
 .SH ENVIRONMENT
 .TP

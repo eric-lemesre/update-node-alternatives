@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# update-node-alternative - Gestion system-wide de Node.js via NVM + update-alternatives
+# update-node-alternatives - Gestion system-wide de Node.js via NVM + update-alternatives
 #
 # Utilise l'infrastructure NVM (versions installees dans /usr/local/share/nvm/versions/node/)
 # et le systeme update-alternatives de Debian pour le basculement.
@@ -504,7 +504,7 @@ load_nvm()
     local script_dir nvm_lib=""
     script_dir=$(dirname "$(readlink -f "$0")")
     local candidates=(
-        "/usr/share/update-node-alternative/nvm/nvm.sh"
+        "/usr/share/update-node-alternatives/nvm/nvm.sh"
         "$script_dir/vendor/nvm/nvm.sh"
         "$NVM_DIR/nvm.sh"
     )
@@ -522,7 +522,7 @@ load_nvm()
         for c in "${candidates[@]}"; do
             echo >&2 "    $c"
         done
-        echo >&2 "  Reinstallez le paquet (apt install update-node-alternative)"
+        echo >&2 "  Reinstallez le paquet (apt install update-node-alternatives)"
         echo >&2 "  ou copiez un nvm.sh dans l'un de ces chemins."
         exit 1
     fi
