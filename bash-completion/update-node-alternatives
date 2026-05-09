@@ -1,0 +1,56 @@
+# bash completion for update-node-alternatives(8)            -*- shell-script -*-
+# shellcheck shell=bash disable=SC2034,SC2207
+
+_update_node_alternatives()
+{
+    local cur prev words cword
+    if declare -F _init_completion >/dev/null 2>&1; then
+        _init_completion || return
+    else
+        COMPREPLY=()
+        cur=${COMP_WORDS[COMP_CWORD]}
+        prev=${COMP_WORDS[COMP_CWORD-1]}
+    fi
+
+    local long_opts="--install --remove --list-remote --list-packages \
+--upgrade --reinstall-packages --list --set --update --auto \
+--from --to --lts --verbose --frontend --no-dialog --help \
+--promote-user-globals --cleanup-user-globals"
+    local short_opts="-i -r -R -p -l -s -u -a -v -h"
+    local frontends="dialog readline gnome kde noninteractive"
+    local store="/usr/local/share/nvm/versions/node"
+
+    _und_installed_versions()
+    {
+        local d
+        [ -d "$store" ] || return
+        for d in "$store"/v*/; do
+            [ -d "$d" ] || continue
+            printf '%s\n' "${d%/}" | xargs -n1 basename
+        done
+    }
+
+    local installed=""
+    case "$prev" in
+        -r|--remove|-s|--set|-p|--list-packages|--from|--to)
+            installed=$(_und_installed_versions)
+            COMPREPLY=( $(compgen -W "$installed" -- "$cur") )
+            return ;;
+        --frontend)
+            COMPREPLY=( $(compgen -W "$frontends" -- "$cur") )
+            return ;;
+        -i|--install|--upgrade)
+            COMPREPLY=( $(compgen -W "lts/* lts/jod lts/iron lts/hydrogen node 18 20 22 24" -- "$cur") )
+            return ;;
+    esac
+
+    case "$cur" in
+        --*)
+            COMPREPLY=( $(compgen -W "$long_opts" -- "$cur") )
+            return ;;
+        -*)
+            COMPREPLY=( $(compgen -W "$short_opts $long_opts" -- "$cur") )
+            return ;;
+    esac
+} &&
+complete -F _update_node_alternatives update-node-alternatives

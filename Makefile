@@ -6,6 +6,7 @@ MANDIR    ?= $(PREFIX)/share/man/man8
 PKGDIR    ?= $(PREFIX)/share/update-node-alternatives
 NVMDIR    ?= $(PKGDIR)/nvm
 PROFILED  ?= /etc/profile.d
+COMPLDIR  ?= $(PREFIX)/share/bash-completion/completions
 DESTDIR   ?=
 
 # Skip the man page when set to 0. Used by debian/rules so dh_installman
@@ -20,6 +21,7 @@ INSTALL_DIR    ?= $(INSTALL) -d -m 0755
 SCRIPT     = update-node-alternatives
 MANPAGE    = update-node-alternatives.8
 PROFILE_SH = profile.d/update-node-alternatives.sh
+COMPL_SH   = bash-completion/update-node-alternatives
 
 NVM_FILES  = vendor/nvm/nvm.sh vendor/nvm/bash_completion vendor/nvm/LICENSE.md vendor/nvm/VERSION
 NVM_EXEC   = vendor/nvm/nvm-exec
@@ -50,10 +52,12 @@ install:
 	$(INSTALL_DIR) $(DESTDIR)$(BINDIR)
 	$(INSTALL_DIR) $(DESTDIR)$(NVMDIR)
 	$(INSTALL_DIR) $(DESTDIR)$(PROFILED)
+	$(INSTALL_DIR) $(DESTDIR)$(COMPLDIR)
 	$(INSTALL_PROG) $(SCRIPT)    $(DESTDIR)$(BINDIR)/$(SCRIPT)
 	$(INSTALL_DATA) $(NVM_FILES) $(DESTDIR)$(NVMDIR)/
 	$(INSTALL_PROG) $(NVM_EXEC)  $(DESTDIR)$(NVMDIR)/nvm-exec
 	$(INSTALL_DATA) $(PROFILE_SH) $(DESTDIR)$(PROFILED)/$(SCRIPT).sh
+	$(INSTALL_DATA) $(COMPL_SH)   $(DESTDIR)$(COMPLDIR)/$(SCRIPT)
 ifneq ($(INSTALL_MAN),0)
 	$(INSTALL_DIR) $(DESTDIR)$(MANDIR)
 	$(INSTALL_DATA) $(MANPAGE)  $(DESTDIR)$(MANDIR)/$(MANPAGE)
@@ -62,6 +66,7 @@ endif
 uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/$(SCRIPT)
 	rm -f $(DESTDIR)$(PROFILED)/$(SCRIPT).sh
+	rm -f $(DESTDIR)$(COMPLDIR)/$(SCRIPT)
 	rm -rf $(DESTDIR)$(NVMDIR)
 	rmdir --ignore-fail-on-non-empty $(DESTDIR)$(PKGDIR) 2>/dev/null || true
 ifneq ($(INSTALL_MAN),0)
