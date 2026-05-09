@@ -1,4 +1,4 @@
-# Rapport — Localisation des bibliothèques Node et binaires dans `update-node-alternative`
+# Rapport — Localisation des bibliothèques Node et binaires dans `update-node-alternatives`
 
 > **Date** : 2026-05-09
 > **Contexte** : analyse préalable aux phases d'évolution du packaging
@@ -37,22 +37,22 @@
 
 | Chemin (mode paquet) | Chemin (mode `make install`) | Origine | Quoi |
 |---|---|---|---|
-| `/usr/sbin/update-node-alternative` | `/usr/local/sbin/update-node-alternative` | `Makefile install` (PREFIX) | Script wrapper bash |
-| `/usr/share/man/man8/update-node-alternative.8` | `/usr/local/share/man/man8/update-node-alternative.8` | idem | Man page (`.8` car wrapper sysadmin) |
-| `/usr/share/update-node-alternative/nvm/nvm.sh` | `/usr/local/share/update-node-alternative/nvm/nvm.sh` | `vendor/nvm/` | NVM vendoré |
-| `/usr/share/update-node-alternative/nvm/nvm-exec` | idem | idem | Helper NVM (exécutable) |
-| `/usr/share/update-node-alternative/nvm/bash_completion` | idem | idem | **Présent mais inactif** — non sourcé |
-| `/usr/share/update-node-alternative/nvm/{LICENSE.md,VERSION}` | idem | idem | Métadata vendor |
+| `/usr/sbin/update-node-alternatives` | `/usr/local/sbin/update-node-alternatives` | `Makefile install` (PREFIX) | Script wrapper bash |
+| `/usr/share/man/man8/update-node-alternatives.8` | `/usr/local/share/man/man8/update-node-alternatives.8` | idem | Man page (`.8` car wrapper sysadmin) |
+| `/usr/share/update-node-alternatives/nvm/nvm.sh` | `/usr/local/share/update-node-alternatives/nvm/nvm.sh` | `vendor/nvm/` | NVM vendoré |
+| `/usr/share/update-node-alternatives/nvm/nvm-exec` | idem | idem | Helper NVM (exécutable) |
+| `/usr/share/update-node-alternatives/nvm/bash_completion` | idem | idem | **Présent mais inactif** — non sourcé |
+| `/usr/share/update-node-alternatives/nvm/{LICENSE.md,VERSION}` | idem | idem | Métadata vendor |
 
-`load_nvm()` (`update-node-alternative:499‑532`) cherche `nvm.sh` dans cet ordre :
+`load_nvm()` (`update-node-alternatives:499‑532`) cherche `nvm.sh` dans cet ordre :
 
-1. `/usr/share/update-node-alternative/nvm/nvm.sh` *(paquet)*
+1. `/usr/share/update-node-alternatives/nvm/nvm.sh` *(paquet)*
 2. `<dirname $0>/vendor/nvm/nvm.sh` *(exécution depuis sources)*
 3. `$NVM_DIR/nvm.sh` = `/usr/local/share/nvm/nvm.sh` *(legacy / héritage de l'ancien `install-node-alternative.sh`)*
 
 ### Couche 2 — données runtime NVM (commun aux deux modes d'install)
 
-`NVM_DIR=/usr/local/share/nvm` (codé en dur, `update-node-alternative:25`)
+`NVM_DIR=/usr/local/share/nvm` (codé en dur, `update-node-alternatives:25`)
 
 ```
 /usr/local/share/nvm/
@@ -95,9 +95,9 @@ paquet la prend telle quelle.
 | `/var/lib/dpkg/alternatives/node`      | DB      | dpkg                           | priorités, slaves, mode auto/manual                  |
 
 **Master** : `node`. **Slaves** : `npm`, `npx`, `corepack`
-(`CORE_BINARIES`, `update-node-alternative:31`). Priorité :
+(`CORE_BINARIES`, `update-node-alternatives:31`). Priorité :
 `major*100 + minor` → v24.15.0 = 2415
-(`update-node-alternative:536‑542`).
+(`update-node-alternatives:536‑542`).
 
 État vérifié sur la machine :
 
@@ -145,7 +145,7 @@ v22.20.0/bin/                →  corepack ng node npm npx pnpm pnpx yarn yarnpk
                                          binaires "fantômes" — non slaves
 ```
 
-`collect_global_packages()` (`update-node-alternative:579‑627`) **liste**
+`collect_global_packages()` (`update-node-alternatives:579‑627`) **liste**
 ces paquets pour les migrer entre versions, mais leurs binaires ne
 deviennent **jamais** des entrées `update-alternatives`. Conséquence
 directe : si l'utilisateur fait `npm i -g @angular/cli` sur v22.20.0,
@@ -186,15 +186,15 @@ champ d'`update-alternatives`.
 
 | Chemin                                             | Création                                        | Modification                      | Suppression                                                 |
 |----------------------------------------------------|-------------------------------------------------|-----------------------------------|-------------------------------------------------------------|
-| `/usr/sbin/update-node-alternative`                | `dpkg -i`                                       | `dpkg --upgrade`                  | `apt remove`                                                |
-| `/usr/share/update-node-alternative/nvm/*`         | `dpkg -i`                                       | `make vendor-nvm` + rebuild       | `apt remove`                                                |
+| `/usr/sbin/update-node-alternatives`                | `dpkg -i`                                       | `dpkg --upgrade`                  | `apt remove`                                                |
+| `/usr/share/update-node-alternatives/nvm/*`         | `dpkg -i`                                       | `make vendor-nvm` + rebuild       | `apt remove`                                                |
 | `/usr/local/share/nvm/{alias,.cache}`              | `load_nvm()` (`mkdir -p`)                       | NVM en interne                    | jamais (TODO: cache cleanup)                                |
 | `/usr/local/share/nvm/versions/node/vX.Y.Z/`       | `--install` (NVM télécharge)                    | `npm i -g …` (ajoute des modules) | `--remove` (NVM uninstall)                                  |
-| `/usr/local/share/nvm/versions/node_binaries.info` | `do_update()` (`update-node-alternative:915`)   | idem                              | jamais                                                      |
+| `/usr/local/share/nvm/versions/node_binaries.info` | `do_update()` (`update-node-alternatives:915`)   | idem                              | jamais                                                      |
 | `/etc/alternatives/{node,…}`                       | `do_update()` → `update-alternatives --install` | `--set` / `--auto`                | `--remove[-all]` (script `do_remove`) ou `postrm` sur purge |
 | `/usr/local/bin/{node,…}`                          | gérés par `update-alternatives`                 | idem                              | idem                                                        |
 
-**Postrm** (`debian/update-node-alternative.postrm`) : sur `purge`
+**Postrm** (`debian/update-node-alternatives.postrm`) : sur `purge`
 uniquement, exécute `update-alternatives --remove-all` pour les 4
 binaires. Le store NVM (`/usr/local/share/nvm/`) est **conservé** (choix
 délibéré, documenté).
@@ -228,7 +228,7 @@ C'est le **point névralgique** que cible la phase 2. Détails :
   (les slaves sont fixés au premier `--install`). Pour ajouter `ng` après
   coup, il faut **remove + reinstall** la même alternative avec la
   nouvelle liste de slaves → c'est ce que fait déjà `do_update()`
-  (`update-node-alternative:872‑923`) en supprimant tout puis
+  (`update-node-alternatives:872‑923`) en supprimant tout puis
   ré-enregistrant. Donc techniquement, ajouter des slaves à la volée est
   faisable, il « suffit » de :
   1. détecter post-`npm -g` les binaires nouvellement créés dans
@@ -237,11 +237,11 @@ C'est le **point névralgique** que cible la phase 2. Détails :
 
 ### 4.3 — `bash_completion` de NVM livré mais inactif
 
-`/usr/share/update-node-alternative/nvm/bash_completion` est fourni mais
-ce paquet expose `update-node-alternative`, **pas** `nvm` (il n'y a pas
+`/usr/share/update-node-alternatives/nvm/bash_completion` est fourni mais
+ce paquet expose `update-node-alternatives`, **pas** `nvm` (il n'y a pas
 de `nvm` dans le `PATH` utilisateur). Cette complétion n'a donc aucun
 usage tel quel. Le paquet n'a **pas** de complétion pour
-`update-node-alternative` lui-même → confirmé sujet de la phase 2.
+`update-node-alternatives` lui-même → confirmé sujet de la phase 2.
 
 ### 4.4 — `/etc/alternatives/` invisible dans la doc et le script
 
@@ -258,7 +258,7 @@ Le 3ᵉ candidat dans `load_nvm()` (`$NVM_DIR/nvm.sh` =
 `/usr/local/share/nvm/nvm.sh`) **est présent** sur cette machine
 (139 220 octets). Vraisemblablement laissé par l'ancien
 `install-node-alternative.sh`. Le candidat #1
-(`/usr/share/update-node-alternative/nvm/nvm.sh`) gagne aujourd'hui via
+(`/usr/share/update-node-alternatives/nvm/nvm.sh`) gagne aujourd'hui via
 le paquet. À long terme, ce 3ᵉ candidat est mort code — utile pour la
 transition, à supprimer plus tard.
 
@@ -284,9 +284,9 @@ transition, à supprimer plus tard.
 ### Pour la phase 2 (complétion + hook npm `-g`)
 
 - **Complétion** : à fournir dans
-  `debian/update-node-alternative.bash-completion` (debhelper standard
+  `debian/update-node-alternatives.bash-completion` (debhelper standard
   `dh_bashcomp`), installé dans
-  `/usr/share/bash-completion/completions/update-node-alternative`. Pas
+  `/usr/share/bash-completion/completions/update-node-alternatives`. Pas
   de chevauchement avec couches 2-3-4.
 - **Hook `npm -g`** : ciblage limité à `npm install -g` (pnpm/yarn ont
   des stores per-user, hors champ d'`update-alternatives` —
@@ -432,7 +432,7 @@ besoin de `drop privileges`, ni de manipuler `$SUDO_USER` pour faire de
 l'écriture cross-user.
 
 `--cleanup-user-globals` rejoint la liste `NO_ROOT_ACTIONS` (déjà
-présente, `update-node-alternative:1050`) avec `list`, `list_remote`,
+présente, `update-node-alternatives:1050`) avec `list`, `list_remote`,
 `list_packages`.
 
 #### Flux complet

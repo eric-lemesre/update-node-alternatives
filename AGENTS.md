@@ -1,4 +1,4 @@
-# update-node-alternative — Contexte de projet
+# update-node-alternatives — Contexte de projet
 
 ## Description
 
@@ -15,34 +15,34 @@ readline, zenity (GTK), kdialog (Qt), noninteractive.
 ## Arborescence du repo
 
 ```
-update-node-alternative          # Script principal (bash)
-update-node-alternative.8        # Page de manuel (section 8)
-Makefile                         # Cibles install/uninstall/purge/deb/check-upstream/vendor-nvm/...
-LICENSE                          # GPL-2.0-or-later (texte complet)
-README.md / README.fr.md         # Documentation utilisateur (anglais / français)
-AGENTS.md                        # Ce fichier
-vendor/nvm/                      # Copie vendorée de nvm-sh/nvm (MIT)
-  VERSION                          # Version exacte embarquée
+update-node-alternatives           # Script principal (bash)
+update-node-alternatives.8         # Page de manuel (section 8)
+Makefile                           # Cibles install/uninstall/purge/deb/check-upstream/vendor-nvm/...
+LICENSE                            # GPL-2.0-or-later (texte complet)
+README.md / README.fr.md           # Documentation utilisateur (anglais / français)
+AGENTS.md                          # Ce fichier
+vendor/nvm/                        # Copie vendorée de nvm-sh/nvm (MIT)
+  VERSION                            # Version exacte embarquée
   nvm.sh, nvm-exec, bash_completion, LICENSE.md, README.md
-debian/                          # Packaging Debian
+debian/                            # Packaging Debian
   changelog, control, copyright (DEP-5), rules, watch
   source/format, *.examples, *.lintian-overrides
-  vendor-nvm.sh                    # Helper de mise à jour du nvm vendoré
+  vendor-nvm.sh                      # Helper de mise à jour du nvm vendoré
 ```
 
 ## Chemins d'installation
 
-### Via le paquet Debian (`apt install update-node-alternative`)
+### Via le paquet Debian (`apt install update-node-alternatives`)
 
-- `/usr/sbin/update-node-alternative` — script
-- `/usr/share/man/man8/update-node-alternative.8` — man page
-- `/usr/share/update-node-alternative/nvm/` — nvm vendoré (nvm.sh, nvm-exec, …)
+- `/usr/sbin/update-node-alternatives` — script
+- `/usr/share/man/man8/update-node-alternatives.8` — man page
+- `/usr/share/update-node-alternatives/nvm/` — nvm vendoré (nvm.sh, nvm-exec, …)
 
 ### Via `make install` (hors-paquet, par défaut `PREFIX=/usr/local`)
 
-- `/usr/local/sbin/update-node-alternative`
-- `/usr/local/share/man/man8/update-node-alternative.8`
-- `/usr/local/share/update-node-alternative/nvm/`
+- `/usr/local/sbin/update-node-alternatives`
+- `/usr/local/share/man/man8/update-node-alternatives.8`
+- `/usr/local/share/update-node-alternatives/nvm/`
 
 ### État runtime (créé/écrit par le script lui-même)
 
@@ -60,7 +60,7 @@ debian/                          # Packaging Debian
 4. Priorité = `major * 100 + minor` (v22.14.0 → 2214). En mode `auto`, la
    plus haute priorité gagne.
 5. `load_nvm()` cherche `nvm.sh` dans (par ordre) :
-   `/usr/share/update-node-alternative/nvm/nvm.sh` (paquet),
+   `/usr/share/update-node-alternatives/nvm/nvm.sh` (paquet),
    `<script_dir>/vendor/nvm/nvm.sh` (sources),
    `$NVM_DIR/nvm.sh` (legacy).
 
@@ -137,7 +137,7 @@ debian/                          # Packaging Debian
 | ------------------------------ | ---------------------------------------------------------------------------------------------- |
 | `install` / `uninstall`        | Standard, honore `PREFIX` et `DESTDIR`                                                         |
 | `purge`                        | `uninstall` + retire alternatives + supprime `/usr/local/share/nvm/` (interactif, root requis) |
-| `check`                        | shellcheck sur `update-node-alternative`                                                       |
+| `check`                        | shellcheck sur `update-node-alternatives`                                                       |
 | `man`                          | Affiche la man page                                                                            |
 | `deb` / `deb-clean`            | Wrap `dpkg-buildpackage -us -uc -b` + clean                                                    |
 | `check-upstream`               | `uscan --no-download --report --verbose`                                                       |
@@ -184,7 +184,7 @@ debian/                          # Packaging Debian
 - [x] Intégration NVM (install, remove, list-remote, list-packages, upgrade)
 - [x] Intégration update-alternatives (list, set, auto, update)
 - [x] Migration interactive des paquets globaux
-- [x] Man page `update-node-alternative.8`
+- [x] Man page `update-node-alternatives.8`
 - [x] Makefile (install, uninstall, purge, check, deb, check-upstream, vendor-nvm)
 - [x] Packaging Debian (control, copyright DEP-5, rules, watch, lintian-overrides)
 - [x] NVM vendoré (0.40.4) + `Provides: bundled-nvm-X.Y.Z`

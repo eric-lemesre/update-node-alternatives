@@ -1,9 +1,9 @@
-# Makefile for update-node-alternative
+# Makefile for update-node-alternatives
 
 PREFIX    ?= /usr/local
 BINDIR    ?= $(PREFIX)/sbin
 MANDIR    ?= $(PREFIX)/share/man/man8
-PKGDIR    ?= $(PREFIX)/share/update-node-alternative
+PKGDIR    ?= $(PREFIX)/share/update-node-alternatives
 NVMDIR    ?= $(PKGDIR)/nvm
 DESTDIR   ?=
 
@@ -12,8 +12,8 @@ INSTALL_PROG   ?= $(INSTALL) -m 0755
 INSTALL_DATA   ?= $(INSTALL) -m 0644
 INSTALL_DIR    ?= $(INSTALL) -d -m 0755
 
-SCRIPT     = update-node-alternative
-MANPAGE    = update-node-alternative.8
+SCRIPT     = update-node-alternatives
+MANPAGE    = update-node-alternatives.8
 
 NVM_FILES  = vendor/nvm/nvm.sh vendor/nvm/bash_completion vendor/nvm/LICENSE.md vendor/nvm/VERSION
 NVM_EXEC   = vendor/nvm/nvm-exec

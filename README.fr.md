@@ -1,4 +1,4 @@
-# update-node-alternative
+# update-node-alternatives
 
 **Français** | [English](README.md)
 
@@ -31,26 +31,26 @@ sur readline classique).
 sudo make install   # installe le script + la man page + le nvm embarqué sous $PREFIX (défaut /usr/local)
 
 # Installer la dernière Node 22 et l'enregistrer
-sudo update-node-alternative --install 22
+sudo update-node-alternatives --install 22
 
 # Basculer dessus
-sudo update-node-alternative --set v22.14.0
+sudo update-node-alternatives --set v22.14.0
 
 # Vérifier
-update-node-alternative --list
+update-node-alternatives --list
 ```
 
 Pour un vrai paquet Debian :
 
 ```bash
 make deb
-sudo apt install -y ../update-node-alternative_*.deb
+sudo apt install -y ../update-node-alternatives_*.deb
 ```
 
 ## Utilisation
 
 ```
-usage: update-node-alternative [-v|--verbose] <action> [options]
+usage: update-node-alternatives [-v|--verbose] <action> [options]
 
 Actions NVM :
   -i, --install <version>            Installer une version Node.js
@@ -75,28 +75,28 @@ Options :
   -h, --help                         Afficher l'aide
 ```
 
-Voir [`update-node-alternative(8)`](update-node-alternative.8) pour le manuel complet.
+Voir [`update-node-alternatives(8)`](update-node-alternatives.8) pour le manuel complet.
 
 ## Exemples
 
 ```bash
 # Installer la dernière LTS par alias
-sudo update-node-alternative --install lts/jod
+sudo update-node-alternatives --install lts/jod
 
 # Lister les LTS disponibles au téléchargement
-update-node-alternative --list-remote --lts
+update-node-alternatives --list-remote --lts
 
 # Voir les paquets globaux d'une version installée
-update-node-alternative --list-packages v22.14.0
+update-node-alternatives --list-packages v22.14.0
 
 # Upgrader de v20 vers v22 avec migration interactive des paquets
-sudo update-node-alternative --upgrade 22 --from v20.18.1
+sudo update-node-alternatives --upgrade 22 --from v20.18.1
 
 # Migrer les paquets globaux entre deux versions déjà installées
-sudo update-node-alternative --reinstall-packages --from v20.18.1 --to v22.14.0
+sudo update-node-alternatives --reinstall-packages --from v20.18.1 --to v22.14.0
 
 # Passer en mode auto (plus haute priorité active)
-sudo update-node-alternative --auto
+sudo update-node-alternatives --auto
 ```
 
 ## Arborescence
@@ -106,9 +106,9 @@ sudo update-node-alternative --auto
   nvm.sh, nvm-exec
   versions/node/vX.Y.Z/               # versions Node.js installées
   versions/node_binaries.info         # fichier d'état
-/usr/local/sbin/update-node-alternative
+/usr/local/sbin/update-node-alternatives
 /usr/local/bin/{node,npm,npx,corepack}   # liens gérés par update-alternatives
-/usr/local/share/man/man8/update-node-alternative.8
+/usr/local/share/man/man8/update-node-alternatives.8
 ```
 
 ## Dépendances
@@ -137,7 +137,7 @@ stockage système puis ré-enregistrez-les auprès de `update-alternatives` :
 ```bash
 sudo mkdir -p /usr/local/share/nvm/versions/node
 sudo cp -a ~/.nvm/versions/node/* /usr/local/share/nvm/versions/node/
-sudo update-node-alternative --update
+sudo update-node-alternatives --update
 ```
 
 ### Packaging Debian
@@ -145,13 +145,13 @@ sudo update-node-alternative --update
 ```bash
 make deb            # construit le .deb dans ../ (wraps dpkg-buildpackage -us -uc -b)
 make deb-clean      # nettoie les artefacts de build Debian
-lintian ../update-node-alternative_*.changes
+lintian ../update-node-alternatives_*.changes
 ```
 
 ### NVM embarqué
 
 Le paquet embarque une copie upstream de [nvm](https://github.com/nvm-sh/nvm)
-sous `vendor/nvm/` (installée dans `/usr/share/update-node-alternative/nvm/`).
+sous `vendor/nvm/` (installée dans `/usr/share/update-node-alternatives/nvm/`).
 La version exacte est enregistrée dans `vendor/nvm/VERSION` et exposée par le
 paquet binaire via `Provides: bundled-nvm-<version>`.
 
