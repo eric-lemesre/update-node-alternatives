@@ -68,27 +68,35 @@ templates dans les langues les plus actives de Debian.
   linguistique est attendue pour un paquet qui pose des questions
   debconf à l'install.
 - **Cibles** (top ~10 par activité de traduction sur
-  [i18n.debian.org](https://www.debian.org/international/l10n/po-debconf/rank)) :
-  - [ ] `fr.po` — français
-  - [ ] `de.po` — allemand
-  - [ ] `es.po` — espagnol
-  - [ ] `it.po` — italien
-  - [ ] `pt_BR.po` — portugais brésilien
-  - [ ] `nl.po` — néerlandais
-  - [ ] `ru.po` — russe
-  - [ ] `ja.po` — japonais
-  - [ ] `cs.po` — tchèque
-  - [ ] `sv.po` — suédois
+  [i18n.debian.org](https://www.debian.org/international/l10n/po-debconf/rank))
+  — brouillons générés le 2026-05-09 via `command-r:latest` (Ollama
+  local, 32B), sortie JSON contrainte, validés `msgfmt -c` :
+  - [x] `fr.po` — français (relu par `magistral:latest`, prêt)
+  - [x] `de.po` — allemand (brouillon, attente relecture native)
+  - [x] `es.po` — espagnol (brouillon, attente relecture native)
+  - [x] `it.po` — italien (brouillon, attente relecture native)
+  - [x] `pt_BR.po` — portugais brésilien (brouillon, attente relecture native)
+  - [x] `nl.po` — néerlandais (brouillon, attente relecture native)
+  - [x] `ru.po` — russe (brouillon, attente relecture native)
+  - [x] `ja.po` — japonais (brouillon, attente relecture native)
+  - [x] `cs.po` — tchèque (brouillon, attente relecture native)
+  - [x] `sv.po` — suédois (brouillon, attente relecture native)
 - **Méthode** :
-  - [ ] `cd debian/po && msginit -i templates.pot -o <lang>.po -l <lang>`
-        (ou copier puis traduire à la main)
-  - [ ] `debconf-updatepo` après chaque modification du
+  - [x] `cd debian/po && msginit --no-translator --no-wrap -i templates.pot -o <lang>.po -l <lang>`
+        (forcer `LANG=<lang>.UTF-8` pour `pt_BR` afin d'éviter un
+        squelette ISO-8859-1)
+  - [x] traduction LLM : `command-r:latest` via Ollama, prompt JSON
+        strict (préserve `\n`, `\"`, valeurs Choices intouchées,
+        identifiants techniques intouchés)
+  - [x] `debconf-updatepo` après chaque modification du
         `debian/templates`
-  - [ ] vérification : `podebconf-display-po debian/po/<lang>.po`
+  - [ ] vérification interactive par langue :
+        `podebconf-display-po debian/po/<lang>.po`
+  - [ ] appels à traduction sur les listes `debian-l10n-<lang>`
+        après publication, pour relecture native
 - **Notes** :
-  - on peut s'auto-traduire `fr.po` ; pour les autres, ouvrir des
-    appels à traduction sur la liste `debian-l10n-<lang>` une fois le
-    paquet publié
+  - `fr.po` est relu et prêt ; les 9 autres restent des brouillons
+    automatiques utiles comme base pour les listes `debian-l10n-*`
   - lintian signale `package-needs-versioned-debconf-dependency` ou
     `unknown-locale-code` si une langue n'est pas reconnue ; choisir
     des codes ISO standard
