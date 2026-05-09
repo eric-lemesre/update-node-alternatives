@@ -8,6 +8,7 @@ debian/debhelper-build-stamp
 debian/files
 debian/*.substvars
 debian/*.debhelper.log
+debian/*.debhelper
 debian/update-node-alternatives/
 
 # Build output (placed one directory up by dpkg-buildpackage)
