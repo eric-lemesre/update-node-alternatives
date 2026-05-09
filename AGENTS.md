@@ -41,12 +41,18 @@ debian/                            # Packaging Debian
 - `/usr/sbin/update-node-alternatives` — script
 - `/usr/share/man/man8/update-node-alternatives.8` — man page
 - `/usr/share/update-node-alternatives/nvm/` — nvm vendoré (nvm.sh, nvm-exec, …)
+- `/etc/profile.d/update-node-alternatives.sh` — défaut
+  `NPM_CONFIG_PREFIX=$HOME/.npm-global` + `PATH` (Phase 2 b)
+- `/usr/share/bash-completion/completions/update-node-alternatives`
+  — complétion (Phase 2 c)
 
 ### Via `make install` (hors-paquet, par défaut `PREFIX=/usr/local`)
 
 - `/usr/local/sbin/update-node-alternatives`
 - `/usr/local/share/man/man8/update-node-alternatives.8`
 - `/usr/local/share/update-node-alternatives/nvm/`
+- `/etc/profile.d/update-node-alternatives.sh` (toujours absolu, hors `PREFIX`)
+- `/usr/local/share/bash-completion/completions/update-node-alternatives`
 
 ### État runtime (créé/écrit par le script lui-même)
 
@@ -59,14 +65,27 @@ debian/                            # Packaging Debian
 
 1. NVM (version vendorée) télécharge les binaires Node dans
    `/usr/local/share/nvm/versions/node/vX.Y.Z/`.
-2. `update-alternatives` gère les liens `/usr/local/bin/{node,npm,npx,corepack}`.
-3. `node` est le master ; `npm`, `npx`, `corepack` sont des slaves.
+2. `update-alternatives` gère le master `/usr/local/bin/node` et un
+   ensemble de slaves **découverts dynamiquement** par `scan_slaves()`
+   à chaque `do_update()` : tout exécutable dans `<version>/bin/`
+   autre que `node` (donc `npm`, `npx`, `corepack`, plus tout binaire
+   déposé par `sudo npm install -g` comme `ng`, `tsc`, `pnpm`, ...).
+3. Le fichier d'état `node_binaries.info` (sous
+   `/usr/local/share/nvm/versions/`) trace l'union et le détail
+   par version : `Binaries=node npm npx ...` (compat 0.3) +
+   `Binaries.vX.Y.Z=npm npx ng tsc` (Phase 2 a).
 4. Priorité = `major * 100 + minor` (v22.14.0 → 2214). En mode `auto`, la
    plus haute priorité gagne.
 5. `load_nvm()` cherche `nvm.sh` dans (par ordre) :
    `/usr/share/update-node-alternatives/nvm/nvm.sh` (paquet),
    `<script_dir>/vendor/nvm/nvm.sh` (sources),
    `$NVM_DIR/nvm.sh` (legacy).
+6. `/etc/profile.d/update-node-alternatives.sh` règle
+   `NPM_CONFIG_PREFIX=$HOME/.npm-global` (sauf si l'utilisateur a déjà
+   un prefix) et préfixe `$NPM_CONFIG_PREFIX/bin` au `PATH`. Un
+   utilisateur peut donc faire `npm install -g <pkg>` sans sudo et
+   son binaire prend le pas sur la version system-wide via le simple
+   ordre de `PATH`.
 
 ## Commandes implémentées
 
@@ -83,8 +102,20 @@ debian/                            # Packaging Debian
 
 - `-l, --list` — Versions installées localement
 - `-s, --set <nodename>` — Activer une version (mode manuel) + propose migration
-- `-u, --update` — Re-enregistrer toutes les versions
+- `-u, --update` — Re-enregistrer toutes les versions (rejouer après
+  `sudo npm install -g <pkg>` pour exposer `<pkg>` sous `/usr/local/bin`)
 - `-a, --auto` — Mode automatique (plus haute priorité)
+
+### Actions paquets npm -g per-user (Phase 2 f)
+
+- `--promote-user-globals` (root via sudo) — promeut les paquets `npm
+  install -g` de `$SUDO_USER` vers la couche system-wide, puis appelle
+  `do_update()` pour les exposer comme alternatives. Refuse sans
+  `$SUDO_USER`. Install root avec `HOME=/root` pour ne pas hériter du
+  `.npmrc` utilisateur.
+- `--cleanup-user-globals` (user, refuse sudo) — supprime les paquets
+  per-user déjà couverts par la couche system-wide à version >=.
+  Idempotent : ne touche jamais aux paquets que seul le per-user a.
 
 ### Options
 
@@ -211,17 +242,27 @@ debian/                            # Packaging Debian
 - [x] NVM vendoré (0.40.4) + `Provides: bundled-nvm-X.Y.Z`
 - [x] Surveillance upstream via `debian/watch` (uscan v4, composant `nvm`)
 - [x] Licence GPL-2+ (SPDX headers)
-- [x] `postrm` : retire les alternatives node/npm/npx/corepack au purge
+- [x] `postrm` : retire les alternatives au purge en lisant
+      `node_binaries.info` (couvre les slaves dynamiques)
 - [x] **Phase 1 (0.3.0~UNRELEASED)** : rename `update-node-alternative`
       → `update-node-alternatives`, debconf 1.b (default-version +
       purge-nvm-store reposé au purge), DEP-12 metadata,
       `debian/README.Debian`. Détails dans `ToDo.md`.
+- [x] **Phase 1bis (0.3.0~UNRELEASED)** : 10 traductions debconf
+      (fr relue, autres en brouillon command-r en attente de relecture
+      `debian-l10n-<lang>`).
+- [x] **Phase 2 (0.4.0~UNRELEASED)** : slaves dynamiques (`scan_slaves`),
+      `/etc/profile.d/update-node-alternatives.sh`, complétion bash,
+      `--promote-user-globals` / `--cleanup-user-globals`. Hook
+      post-`npm -g` automatique : décision = option 3 (rien
+      automatiser, documenter `--update`).
 
-## TODO / Pistes restantes (phase 2 et après)
+## TODO / Pistes restantes
 
-- [ ] **Phase 2** (cf. `ToDo.md`) : slaves dynamiques pour `npm -g`,
-      `/etc/profile.d/` per-user, complétion bash, hook post-`npm -g`,
-      promotion per-user → system-wide
+- [ ] Support pnpm/yarn natif (`pnpm root -g`, `yarn global dir`) dans
+      les actions promote/cleanup
+- [ ] Signaler les conflits de version Node entre paquet per-user et
+      version system active (cf. rapport § 5.4)
 - [ ] Tests automatisés (bats-core ou tests fonctionnels)
 - [ ] Nettoyage du cache NVM (`/usr/local/share/nvm/.cache/`)
 - [ ] Publication paquet (Debian mentors, PPA Ubuntu, ou repo APT perso)

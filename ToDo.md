@@ -103,115 +103,101 @@ templates dans les langues les plus actives de Debian.
 
 ---
 
-## Phase 2 — Hook `npm -g`, complétion, promotion per-user
+## Phase 2 — Hook `npm -g`, complétion, promotion per-user ✅
 
-> À démarrer **après** la phase 1 (rename + debconf).
+Implémentée le 2026-05-09 dans le changelog `0.4.0~UNRELEASED`.
 
-### a. Slaves dynamiques dans `do_update()`
+### a. Slaves dynamiques dans `do_update()` ✅
 
-Rend system-wide les binaires installés via `npm -g` (`ng`, `pnpm`,
-`yarn`, `tsc`, …).
+- [x] `CORE_BINARIES` figé retiré ; `scan_slaves()` énumère
+      `$NODEBIN_DIR/*` (exécutable, hors `node`, hors dotfiles, hors
+      répertoires) à chaque `do_update()`
+- [x] `update-alternatives --install` reçoit la liste de slaves propre
+      à chaque version (autorisé par `update-alternatives`)
+- [x] `node_binaries.info` v2 : `Binaries=…` (union, compat 0.3) +
+      `Binaries.vX.Y.Z=…` par version
+- [x] `postrm` lit l'union depuis `node_binaries.info` pour purger
+      proprement les slaves dynamiques (`ng`, `tsc`, …) au lieu de
+      cabler `node npm npx corepack`
 
-- **Pourquoi** : la couche 4 (paquets `npm -g`) est l'angle mort
-  actuel. Les binaires apparaissent dans `…/vX.Y.Z/bin/` mais ne sont
-  pas slaves de l'alternative `node`, donc invisibles dans
-  `/usr/local/bin/`.
-- **À faire** :
-  - [ ] remplacer `CORE_BINARIES` figé par un scan de `$NODEBIN_DIR/*`
-        au moment du `update-alternatives --install`
-  - [ ] gérer les slaves différents entre versions (autorisé par
-        `update-alternatives`)
-  - [ ] adapter `node_binaries.info` : état par-version au lieu de
-        global (clés `Binaries.vX.Y.Z=…`)
-  - [ ] ciblage explicite : **`npm -g` uniquement** — pnpm/yarn écrivent
-        dans `$HOME`, hors champ
+### b. `/etc/profile.d/update-node-alternatives.sh` ✅
 
-### b. `/etc/profile.d/update-node-alternatives.sh`
+- [x] script POSIX sh idempotent qui exporte
+      `NPM_CONFIG_PREFIX="$HOME/.npm-global"` si non défini
+- [x] préfixe `$NPM_CONFIG_PREFIX/bin` au `PATH`
+- [x] livré sous `/etc/profile.d/` (sourcé par bash, sh, et zsh quand
+      celui-ci hérite de `/etc/profile`)
+- [x] Makefile : nouvelle variable `PROFILED` (absolue, hors `PREFIX`)
 
-Active le fallback per-user automatiquement.
+### c. Complétion `update-node-alternatives` ✅
 
-- **Pourquoi** : combiné à (a), permet à un utilisateur d'overrider le
-  binaire system-wide en faisant son propre `npm install -g …` sans
-  sudo. Le PATH Unix arbitre seul (per-user prioritaire), aucune
-  logique custom dans le wrapper. Couvre le TODO existant
-  « Intégration `/etc/profile.d/` » de `AGENTS.md`.
-- **À faire** :
-  - [ ] livrer un script qui exporte
-        `NPM_CONFIG_PREFIX="$HOME/.npm-global"` (sauf si déjà défini)
-  - [ ] préfixer `$NPM_CONFIG_PREFIX/bin` au `PATH`
-  - [ ] bash + zsh
+- [x] `bash-completion/update-node-alternatives` complète options
+      longues/courtes, versions installées (`--remove`, `--set`,
+      `--list-packages`, `--from`, `--to`), frontends valides, et
+      hint d'alias LTS pour `--install`/`--upgrade`
+- [x] Makefile install vers
+      `$(PREFIX)/share/bash-completion/completions/`
+- [x] indépendant des points (a) et (b)
 
-### c. Complétion `update-node-alternatives`
+### d. Hook automatique post-`npm -g` ✅ (option 3)
 
-- **Pourquoi** : ergonomie ; aujourd'hui aucun complétion live.
-- **À faire** :
-  - [ ] `debian/update-node-alternatives.bash-completion`
-        (via `dh_bashcomp`)
-  - [ ] installée dans
-        `/usr/share/bash-completion/completions/update-node-alternatives`
-  - [ ] indépendant des points (a) et (b)
+- [x] **décision** : ne rien automatiser. Documenter
+      `update-node-alternatives --update` comme point de re-sync
+      explicite après `sudo npm install -g <pkg>`
+- [x] piste 1 (wrapper `npm`) : rejetée — invasif, casse l'écosystème
+      npm
+- [x] piste 2 (`inotifywait` daemon) : rejetée — coûteux pour le
+      besoin
+- [x] piste 3 retenue, mention explicite dans `update-node-alternatives(8)`
 
-### d. Hook automatique post-`npm -g`
+### e. Doc man page ✅
 
-- **Pourquoi** : éviter à l'utilisateur de penser à
-  `update-node-alternatives -u` après chaque `npm i -g`.
-- **Pistes** (à trancher au démarrage de la phase 2) :
-  - [ ] piste 1 : wrapper sur `npm` — nécessite ré-architecture
-        master/slave (`npm` master au lieu de `node` ?)
-  - [ ] piste 2 : `inotifywait` daemon sur `lib/node_modules/` — lourd
-  - [ ] piste 3 : ne rien automatiser, documenter
-        `update-node-alternatives -u` (option de moindre effort)
+- [x] sous-section *Per-user override* (profile.d + arbitrage par PATH)
+- [x] sous-section *Per-user globals* (workflow promote/cleanup,
+      modèle de privilèges, ségrégation `.npmrc`, idempotence)
+- [x] EXAMPLES pour `npm i -g` + `--update`,
+      `--promote-user-globals`, `--cleanup-user-globals`
+- [x] FILES : `/etc/profile.d/`, completion, schéma `node_binaries.info`
+- [x] ENVIRONMENT : `NPM_CONFIG_PREFIX`, `SUDO_USER`
+- [x] PRIVILEGES réécrit pour mentionner cleanup (refuse root) et
+      promote (exige `$SUDO_USER`)
+- [x] README.md / README.fr.md mis à jour côté Features et Usage
 
-### e. Doc man page
+### f. Promotion per-user → system-wide + nettoyage `$HOME` ✅
 
-- **À faire** :
-  - [ ] décrire le workflow admin (sudo + system-wide) vs user (PATH
-        per-user)
-  - [ ] décrire la complémentarité (a) + (b)
-  - [ ] décrire le mécanisme de fallback per-user via `PATH`
-
-### f. Promotion per-user → system-wide + nettoyage `$HOME`
-
-Deux sous-commandes séparées par privilèges
-(cf. rapport [§ 5.4](docs/localisation-node-binaires.md)).
-
-- **Pourquoi** : factoriser les paquets globaux disséminés dans les
-  `$HOME` sans que l'admin ait à les inventorier ; permettre à chaque
-  utilisateur de nettoyer son `$HOME` quand il le souhaite. Conforme
-  aux conventions Debian si la séparation root/user est stricte.
-- **Dépendance** : nécessite (a) — les slaves dynamiques. Sans eux, la
-  promotion crée `lib/node_modules/@angular/cli` mais pas
-  `/usr/local/bin/ng`.
-- **À faire** :
-  - [ ] `--promote-user-globals` (root via sudo) :
-    - [ ] détecter `$SUDO_USER` ; refuser si invocation sans sudo
-    - [ ] lire les prefixes user dynamiquement
-          (`npm config get prefix --userconfig`, `pnpm root -g`,
-          `yarn global dir`)
-    - [ ] lister les paquets per-user non encore system-wide
-    - [ ] checklist interactive (`dialog_checklist`, frontend déjà en
-          place)
-    - [ ] réinstaller via `npm i -g` dans la couche 2
-    - [ ] appeler `do_update()` pour rafraîchir les slaves
-  - [ ] `--cleanup-user-globals` (user, refuse sudo) :
-    - [ ] ajouter à `NO_ROOT_ACTIONS`
-    - [ ] refuser net si `id -u == 0`
-    - [ ] comparer per-user vs system-wide
-    - [ ] ne proposer cochables que les paquets présents des deux côtés
-    - [ ] désinstaller via le gestionnaire d'origine
-          (`npm uninstall -g --prefix=…`, `pnpm uninstall -g`,
-          `yarn global remove`)
-  - [ ] pivotement étape 1 → 2 :
-    - [ ] à la fin de `--promote-user-globals`, `dialog_yesno`
-    - [ ] si oui : `exec sudo -u "$SUDO_USER" "$0" --cleanup-user-globals`
-          (drop privileges propre)
-- **Garde-fous** :
-  - [ ] lecture seule de `$HOME` côté root
-  - [ ] ne jamais réutiliser registry/tokens du `.npmrc` user pour
-        l'install root
-  - [ ] `DEBIAN_FRONTEND=noninteractive` ⇒ rapport seul, aucune action
-  - [ ] idempotence : skip si version system-wide ≥ version per-user
-  - [ ] signaler les conflits de version ou proposer l'installation de la version de node du paquet per-user pour le rendre system-wide
+- [x] `--promote-user-globals` (root via sudo) :
+  - [x] refuse sans `$SUDO_USER`
+  - [x] découverte du prefix npm utilisateur via
+        `sudo -u $SUDO_USER -H npm config get prefix` puis repli
+        `~/.npm-global`
+  - [x] liste les paquets per-user non couverts system-wide (ou avec
+        version per-user > system)
+  - [x] checklist interactive (réutilise `dialog_checklist`)
+  - [x] installation system-wide via `HOME=/root npm install -g …`
+        — **jamais** d'héritage du `.npmrc` utilisateur (registry,
+        tokens privés)
+  - [x] `do_update()` final pour exposer les nouveaux slaves
+- [x] `--cleanup-user-globals` (user, refuse sudo) :
+  - [x] ajouté à `NO_ROOT_ACTIONS`
+  - [x] refus net si `id -u == 0`
+  - [x] ne propose cochable que `system >= user` (idempotence)
+  - [x] désinstallation via `npm uninstall -g <pkg>`
+- [x] pivotement étape 1 → 2 :
+  - [x] `dialog_yesno` à la fin de `--promote-user-globals`
+  - [x] si oui : `exec sudo -u "$SUDO_USER" -H -- "$0"
+        --cleanup-user-globals`
+- [x] garde-fous :
+  - [x] lecture seule de `$HOME` côté root (jamais d'écriture)
+  - [x] `HOME=/root` à l'install root
+  - [x] `DEBIAN_FRONTEND=noninteractive` ⇒ rapport seul
+  - [x] idempotence par comparaison `dpkg --compare-versions`
+- [ ] **différé** : signaler les conflits de version Node entre
+      paquet per-user et version system active (point listé dans le
+      rapport § 5.4 mais non bloquant pour la première version)
+- [ ] **différé** : support natif pnpm/yarn (`pnpm root -g`,
+      `yarn global dir`) — l'implémentation actuelle s'appuie
+      uniquement sur npm car les binaires per-user pnpm/yarn finissent
+      sous `~/.npm-global` quand l'utilisateur les installe via npm
 
 ---
 

@@ -1,3 +1,60 @@
+update-node-alternatives (0.4.0~UNRELEASED) UNRELEASED; urgency=medium
+
+  * Dynamic slaves (Phase 2 a). do_update() no longer relies on a fixed
+    CORE_BINARIES=(npm npx corepack) list. Each --install / --set /
+    --auto / --update now scans <version>/bin/ and registers every
+    executable other than `node` as a slave alternative. Binaries
+    deposited by `sudo npm install -g` (ng, tsc, pnpm, ...) become
+    /usr/local/bin/<name> symlinks managed by update-alternatives(1)
+    without further script changes. node_binaries.info gains
+    Binaries.<version>=... lines while the union Binaries=... line is
+    preserved for backward compatibility.
+  * postrm (Phase 2 a). Reads the union from node_binaries.info on
+    `apt purge` so dynamic slaves are removed cleanly; falls back to
+    the static `node npm npx corepack` set if the state file is gone.
+  * /etc/profile.d/update-node-alternatives.sh (Phase 2 b). Defaults
+    NPM_CONFIG_PREFIX to $HOME/.npm-global on login (POSIX sh,
+    idempotent) and prefixes $NPM_CONFIG_PREFIX/bin to PATH. Combined
+    with dynamic slaves, this lets a regular user override a system-
+    wide binary by running `npm i -g <pkg>` without sudo, with PATH
+    order alone arbitrating which binary wins. Makefile gains a
+    PROFILED variable (default /etc/profile.d, absolute, not under
+    PREFIX).
+  * Bash completion (Phase 2 c). New bash-completion/update-node-
+    alternatives, installed at /usr/share/bash-completion/completions/
+    update-node-alternatives. Completes the long/short option list,
+    installed versions for --remove/--set/--list-packages/--from/--to,
+    valid frontends for --frontend, and hints common LTS aliases for
+    --install/--upgrade.
+  * --promote-user-globals (Phase 2 f). Root via sudo (refuses without
+    $SUDO_USER): discovers the user's npm prefix via
+    `sudo -u $SUDO_USER -H npm config get prefix`, lists per-user
+    `npm install -g` packages not yet covered system-wide at >= the
+    per-user version, checklists the rest, then re-installs the
+    selection in the system-wide layer with `HOME=/root npm install
+    -g` (the user's .npmrc, registry and tokens are NEVER inherited
+    for the root install). Calls --update so the freshly installed
+    binaries become alternatives. Optionally chains into
+    --cleanup-user-globals via `exec sudo -u $SUDO_USER`.
+  * --cleanup-user-globals (Phase 2 f). User only (refuses if id -u
+    == 0). Drops every per-user `npm install -g` package whose system-
+    wide counterpart is at >= version, via `npm uninstall -g`.
+    Idempotent: never strands the user on a feature only their per-
+    user copy carries.
+  * Decision (Phase 2 d). No automatic post-`npm install -g` hook is
+    shipped (the simplest of the three options weighed in ToDo.md).
+    `update-node-alternatives --update` is the documented re-sync
+    entry point; the man page now says so explicitly.
+  * docs (Phase 2 e). update-node-alternatives(8) gains a Per-user
+    override subsection, a Per-user globals action subsection,
+    EXAMPLES for `npm i -g` + --update, --promote-user-globals and
+    --cleanup-user-globals, FILES entries for /etc/profile.d/, the
+    bash-completion script and the new node_binaries.info schema, and
+    ENVIRONMENT entries for NPM_CONFIG_PREFIX and SUDO_USER.
+    README.md / README.fr.md mirror the new feature surface.
+
+ -- Eric Lemesre <eric.lemesre@gmail.com>  Sat, 09 May 2026 17:00:00 +0200
+
 update-node-alternatives (0.3.0~UNRELEASED) UNRELEASED; urgency=medium
 
   * Rename source and binary package: update-node-alternative ->
