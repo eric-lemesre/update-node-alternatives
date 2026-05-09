@@ -1,0 +1,83 @@
+# Portuguese translations for update-node-alternatives package
+# Traduções em português brasileiro para o pacote update-node-alternatives.
+# Copyright (C) 2026 THE update-node-alternatives'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the update-node-alternatives package.
+# Automatically generated, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: update-node-alternatives\n"
+"Report-Msgid-Bugs-To: update-node-alternatives@packages.debian.org\n"
+"POT-Creation-Date: 2026-05-09 15:43+0200\n"
+"PO-Revision-Date: 2026-05-09 18:41+0200\n"
+"Last-Translator: Eric Lemesre <eric.lemesre@gmail.com>\n"
+"Language-Team: none\n"
+"Language: pt_BR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#. Type: select
+#. Description
+#: ../templates:1001
+msgid "Default Node.js version to install:"
+msgstr "Versão padrão do Node.js para instalar:"
+
+#. Type: select
+#. Description
+#: ../templates:1001
+msgid "update-node-alternatives can download a Node.js version through the bundled nvm and register it as the system-wide alternative right after the package is configured."
+msgstr "update-node-alternatives pode baixar uma versão do Node.js através do nvm embutido e registrá-la como a alternativa de sistema logo após a configuração do pacote."
+
+#. Type: select
+#. Description
+#: ../templates:1001
+msgid ""
+" - \"latest LTS\" installs the most recent Long-Term Support release;\n"
+" - \"latest\" installs the most recent Node.js release;\n"
+" - \"none\" leaves the system without a Node.js version (the default);\n"
+" - \"custom\" lets you type a specific version string (e.g. v22.14.0,\n"
+"   lts/jod, 20)."
+msgstr ""
+" - \"latest LTS\" instala a versão mais recente com Suporte de Longo Prazo;\n"
+" - \"latest\" instala a versão mais recente do Node.js;\n"
+" - \"none\" deixa o sistema sem uma versão do Node.js (o padrão);\n"
+" - \"custom\" permite que você digite uma string de versão específica (por exemplo, v22.14.0,\n"
+"   lts/jod, 20)."
+
+#. Type: select
+#. Description
+#: ../templates:1001
+msgid "Choosing \"none\" is always safe: you can install or change the active version later with `update-node-alternatives --install <version>`."
+msgstr "Escolher \"none\" é sempre seguro: você pode instalar ou alterar a versão ativa posteriormente com `update-node-alternatives --install <version>`."
+
+#. Type: string
+#. Description
+#: ../templates:2001
+msgid "Custom Node.js version to install:"
+msgstr "Versão personalizada do Node.js para instalar:"
+
+#. Type: string
+#. Description
+#: ../templates:2001
+msgid "Type the Node.js version string to install. Anything accepted by `update-node-alternatives --install` (and ultimately by nvm) works: a major number (22), a full version (v22.14.0), or an alias (lts/jod, lts/*, node)."
+msgstr "Digite a string de versão do Node.js a ser instalada. Qualquer coisa aceita por `update-node-alternatives --install` (e, em última instância, pelo nvm) funciona: um número principal (22), uma versão completa (v22.14.0) ou um alias (lts/jod, lts/*, node)."
+
+#. Type: boolean
+#. Description
+#: ../templates:3001
+msgid "Remove all installed Node.js versions on apt purge?"
+msgstr "Remover todas as versões do Node.js instaladas ao executar apt purge?"
+
+#. Type: boolean
+#. Description
+#: ../templates:3001
+msgid "update-node-alternatives stores Node.js versions under /usr/local/share/nvm/, outside dpkg's tree. By default `apt purge` leaves that store untouched."
+msgstr "update-node-alternatives armazena as versões do Node.js em /usr/local/share/nvm/, fora da árvore dpkg. Por padrão, `apt purge` deixa esse armazenamento intacto."
+
+#. Type: boolean
+#. Description
+#: ../templates:3001
+msgid "When enabled, `apt purge` will also delete /usr/local/share/nvm/, along with every Node.js version installed through this package. The choice is recorded now and re-confirmed at purge time."
+msgstr "Quando habilitado, `apt purge` também exclui /usr/local/share/nvm/, junto com todas as versões do Node.js instaladas através deste pacote. A escolha é registrada agora e confirmada novamente no momento da purga."
