@@ -20,7 +20,7 @@ update-node-alternative.8        # Page de manuel (section 8)
 Makefile                         # Cibles install/uninstall/purge/deb/check-upstream/vendor-nvm/...
 LICENSE                          # GPL-2.0-or-later (texte complet)
 README.md / README.fr.md         # Documentation utilisateur (anglais / français)
-CLAUDE.md                        # Ce fichier
+AGENTS.md                        # Ce fichier
 vendor/nvm/                      # Copie vendorée de nvm-sh/nvm (MIT)
   VERSION                          # Version exacte embarquée
   nvm.sh, nvm-exec, bash_completion, LICENSE.md, README.md

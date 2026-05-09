@@ -22,7 +22,7 @@ final, par cohérence avec `update-alternatives`).
   - [ ] URLs `Vcs-*`, `Homepage:` dans `debian/control`
   - [ ] `debian/watch` (composant + main upstream)
   - [ ] `README.md`, `README.fr.md`
-  - [ ] `CLAUDE.md`
+  - [ ] `AGENTS.md`
   - [ ] **transitional package** `update-node-alternative` qui dépend du
         nouveau nom, pour ne pas casser les installations existantes
 
@@ -106,7 +106,7 @@ Active le fallback per-user automatiquement.
   binaire system-wide en faisant son propre `npm install -g …` sans
   sudo. Le PATH Unix arbitre seul (per-user prioritaire), aucune
   logique custom dans le wrapper. Couvre le TODO existant
-  « Intégration `/etc/profile.d/` » de `CLAUDE.md`.
+  « Intégration `/etc/profile.d/` » de `AGENTS.md`.
 - **À faire** :
   - [ ] livrer un script qui exporte
         `NPM_CONFIG_PREFIX="$HOME/.npm-global"` (sauf si déjà défini)

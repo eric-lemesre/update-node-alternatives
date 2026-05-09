@@ -355,7 +355,7 @@ naturellement sur le `ng` exposé par l'admin.
 
 #### Le chaînon manquant — `/etc/profile.d/update-node-alternatives.sh`
 
-C'est le TODO déjà inscrit dans `CLAUDE.md` (« Intégration
+C'est le TODO déjà inscrit dans `AGENTS.md` (« Intégration
 `/etc/profile.d/` pour exposer le PATH des binaires npm globaux installés
 par utilisateur »). Le paquet pourrait livrer un fichier du type :
 
