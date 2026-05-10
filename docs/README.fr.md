@@ -1,6 +1,6 @@
 # update-node-alternatives
 
-**Français** | [English](README.md)
+[English](../README.md) | **Français** | [Deutsch](README.de.md) | [Español](README.es.md) | [Italiano](README.it.md) | [Português (Brasil)](README.pt_BR.md)
 
 Un gestionnaire de versions Node.js system-wide pour Debian, dans l'esprit de
 [`update-java-alternatives(8)`](https://manpages.debian.org/update-java-alternatives).
@@ -95,7 +95,7 @@ Options :
   -h, --help                         Afficher l'aide
 ```
 
-Voir [`update-node-alternatives(8)`](update-node-alternatives.8) pour le manuel complet.
+Voir [`update-node-alternatives(8)`](../update-node-alternatives.8) pour le manuel complet.
 
 ## Exemples
 
@@ -204,7 +204,7 @@ upstream, remplace les fichiers de `vendor/nvm/`, met à jour
 
 ## Licence
 
-GPL-2.0-or-later — voir [LICENSE](LICENSE).
+GPL-2.0-or-later — voir [LICENSE](../LICENSE).
 
 ## Auteur
 

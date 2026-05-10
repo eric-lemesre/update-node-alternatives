@@ -262,7 +262,7 @@ debian/                            # Packaging Debian
 - [ ] Support pnpm/yarn natif (`pnpm root -g`, `yarn global dir`) dans
       les actions promote/cleanup
 - [ ] Signaler les conflits de version Node entre paquet per-user et
-      version system active (cf. rapport § 5.4)
+      version system active
 - [ ] Tests automatisés (bats-core ou tests fonctionnels)
 - [ ] Nettoyage du cache NVM (`/usr/local/share/nvm/.cache/`)
 - [ ] Publication paquet (Debian mentors, PPA Ubuntu, ou repo APT perso)

@@ -1,9 +1,9 @@
 # ToDo — Roadmap `update-node-alternative(s)`
 
-> Décisions prises le **2026-05-09** sur la base du rapport
-> [`docs/localisation-node-binaires.md`](docs/localisation-node-binaires.md).
-> Ce document est l'export actionnable de la roadmap ; les détails de
-> conception complets sont dans le rapport.
+> Roadmap actionnable. Phases 1, 1bis et 2 livrées dans `0.4.0`
+> (2026-05-09). L'analyse 4-couches qui a guidé la conception est
+> désormais reflétée dans `AGENTS.md` § Mécanisme et dans
+> `update-node-alternatives(8)`.
 
 ## Phase 1 — Alignement standards Debian + rename ✅
 
@@ -192,8 +192,8 @@ Implémentée le 2026-05-09 dans le changelog `0.4.0~UNRELEASED`.
   - [x] `DEBIAN_FRONTEND=noninteractive` ⇒ rapport seul
   - [x] idempotence par comparaison `dpkg --compare-versions`
 - [ ] **différé** : signaler les conflits de version Node entre
-      paquet per-user et version system active (point listé dans le
-      rapport § 5.4 mais non bloquant pour la première version)
+      paquet per-user et version system active (non bloquant pour
+      la première version)
 - [ ] **différé** : support natif pnpm/yarn (`pnpm root -g`,
       `yarn global dir`) — l'implémentation actuelle s'appuie
       uniquement sur npm car les binaires per-user pnpm/yarn finissent
@@ -206,7 +206,7 @@ Implémentée le 2026-05-09 dans le changelog `0.4.0~UNRELEASED`.
 - ✓ **pnpm et yarn ne sont pas ciblés pour un usage system-wide via
   leurs gestionnaires propres**. Leurs paquets `-g` écrivent dans
   `$HOME` ; les forcer dans la couche 2 casserait le store CAS de pnpm
-  et imposerait sudo systématique. Voir § 5.3 du rapport.
+  et imposerait sudo systématique.
 - ✓ **Mais** leurs paquets per-user *peuvent* être promus en
   system-wide via la sous-commande (f), qui réinstalle uniformément
   avec `npm install -g`.

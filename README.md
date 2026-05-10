@@ -1,6 +1,6 @@
 # update-node-alternatives
 
-[Français](README.fr.md) | **English**
+**English** | [Français](docs/README.fr.md) | [Deutsch](docs/README.de.md) | [Español](docs/README.es.md) | [Italiano](docs/README.it.md) | [Português (Brasil)](docs/README.pt_BR.md)
 
 A system-wide Node.js version manager for Debian, in the spirit of
 [`update-java-alternatives(8)`](https://manpages.debian.org/update-java-alternatives).
