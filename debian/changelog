@@ -1,3 +1,30 @@
+update-node-alternatives (0.4.1) unstable; urgency=medium
+
+  * Run npm with the node of its own version. The global-package
+    migration called <version>/bin/npm, a '#!/usr/bin/env node' script,
+    so it ran under whichever node came first in PATH: the active one
+    (wrong ABI for native modules) or none at all under a sudo
+    secure_path without /usr/local/bin ('env: node: No such file or
+    directory'). New helper npm_for() prepends the version's bin/ to
+    PATH.
+  * Prepend /usr/local/bin to PATH when it is missing, so npm --version,
+    --promote-user-globals and --cleanup-user-globals also work under a
+    restricted sudo secure_path. 'sudo -u <user> npm config get prefix'
+    now forwards PATH as well.
+  * do_update: keep the manual selection. It ran
+    'update-alternatives --remove-all node' before re-registering every
+    version, which silently switched the group back to auto mode
+    (highest version) on every --install, --update and
+    --promote-user-globals.
+  * --set: read the previously active version before do_update. It was
+    read afterwards, so the migration offered the packages of the
+    highest installed version instead of those of the version being
+    replaced.
+  * migrate_global_packages: say so when there is nothing to migrate
+    instead of printing nothing outside --verbose.
+
+ -- Eric Lemesre <eric.lemesre@gmail.com>  Sun, 25 Oct 2026 10:22:00 +0100
+
 update-node-alternatives (0.4.0) unstable; urgency=medium
 
   [ Phase 1 -- Debian standards alignment + rename ]
