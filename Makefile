@@ -28,7 +28,7 @@ NVM_EXEC   = vendor/nvm/nvm-exec
 
 SHELLCHECK ?= shellcheck
 
-.PHONY: all help install uninstall purge check man clean deb deb-clean check-upstream vendor-nvm vendor-nvm-show
+.PHONY: all help install uninstall purge check test man clean deb deb-clean check-upstream vendor-nvm vendor-nvm-show
 
 all: help
 
@@ -38,6 +38,7 @@ help:
 	@echo "  make uninstall     Remove installed script + man page"
 	@echo "  make purge         uninstall + drop alternatives + /usr/local/share/nvm/"
 	@echo "  make check         Run shellcheck on shell scripts"
+	@echo "  make test          Run the functional tests (no root, no network)"
 	@echo "  make man           Show the man page"
 	@echo "  make clean         Remove generated artifacts"
 	@echo "  make deb           Build the Debian package into ../"
@@ -98,7 +99,10 @@ check:
 	@command -v $(SHELLCHECK) >/dev/null 2>&1 || { \
 	    echo "shellcheck not found. Install with: sudo apt install shellcheck"; exit 1; \
 	}
-	$(SHELLCHECK) --shell=bash $(SCRIPT)
+	$(SHELLCHECK) --shell=bash $(SCRIPT) tests/functional.sh
+
+test:
+	./tests/functional.sh ./$(SCRIPT)
 
 man:
 	@command -v man >/dev/null 2>&1 || { echo "man not found"; exit 1; }

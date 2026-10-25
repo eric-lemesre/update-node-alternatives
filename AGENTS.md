@@ -18,6 +18,7 @@ readline, zenity (GTK), kdialog (Qt), noninteractive.
 update-node-alternatives           # Script principal (bash)
 update-node-alternatives.8         # Page de manuel (section 8)
 Makefile                           # Cibles install/uninstall/purge/deb/check-upstream/vendor-nvm/...
+tests/functional.sh                # Tests fonctionnels (sans root ni reseau, sandbox update-alternatives)
 LICENSE                            # GPL-2.0-or-later (texte complet)
 README.md / README.fr.md           # Documentation utilisateur (anglais / français)
 AGENTS.md                          # Ce fichier
@@ -172,7 +173,8 @@ debian/                            # Packaging Debian
 | ------------------------------ | ---------------------------------------------------------------------------------------------- |
 | `install` / `uninstall`        | Standard, honore `PREFIX` et `DESTDIR`                                                         |
 | `purge`                        | `uninstall` + retire alternatives + supprime `/usr/local/share/nvm/` (interactif, root requis) |
-| `check`                        | shellcheck sur `update-node-alternatives`                                                       |
+| `check`                        | shellcheck sur `update-node-alternatives` et `tests/functional.sh`                              |
+| `test`                         | `tests/functional.sh` (lance aussi par `dh_auto_test` au build du paquet)                      |
 | `man`                          | Affiche la man page                                                                            |
 | `deb` / `deb-clean`            | Wrap `dpkg-buildpackage -us -uc -b` + clean                                                    |
 | `check-upstream`               | `uscan --no-download --report --verbose`                                                       |
@@ -263,7 +265,9 @@ debian/                            # Packaging Debian
       les actions promote/cleanup
 - [ ] Signaler les conflits de version Node entre paquet per-user et
       version system active
-- [ ] Tests automatisés (bats-core ou tests fonctionnels)
+- [x] Tests fonctionnels `tests/functional.sh` (0.4.1) : `--update`, `--set`,
+      `--reinstall-packages`, PATH sans `/usr/local/bin`
+- [ ] Étendre les tests (`--install`/`--remove` via un faux nvm, promote/cleanup)
 - [ ] Nettoyage du cache NVM (`/usr/local/share/nvm/.cache/`)
 - [ ] Publication paquet (Debian mentors, PPA Ubuntu, ou repo APT perso)
 - [ ] CI (shellcheck + build deb + lintian)
