@@ -1,3 +1,30 @@
+update-node-alternatives (0.5.0) unstable; urgency=medium
+
+  * New action --install-packages [--to <version>]: collect the global
+    npm packages of every other installed Node.js version, grouped by
+    name with the versions found, and install a selection into the
+    target (default: the active version). Packages already in the target
+    start unchecked.
+  * Check engines.node before installing global packages, for this
+    action and for the --set/--upgrade/--reinstall-packages migration:
+    the range is evaluated with the target's node and the semver module
+    bundled with its npm. Incompatible packages start unchecked and are
+    flagged.
+  * Install global packages one at a time with the target's npm and
+    --engine-strict, so a registry release that excludes the target is
+    refused and one failure does not block the others; then re-register
+    alternatives to expose the new binaries.
+  * postinst: drop the 0.4.2 re-registration of alternatives. Maintainer
+    scripts must not write under /usr/local (Policy 9.1.2); debian/NEWS
+    tells admins upgrading from 0.4.1 or older to run --update.
+  * debian/README.Debian: document the /usr/local rule, the package
+    compatibility check and the remaining deviations from Debian main
+    (bundled nvm, optional download at install time).
+  * Sort candidate packages with LC_ALL=C; readline checklist honours \n
+    in its text like the other frontends. Tests grow to 20 checks.
+
+ -- Eric Lemesre <eric.lemesre@gmail.com>  Sun, 25 Oct 2026 11:38:09 +0100
+
 update-node-alternatives (0.4.2) unstable; urgency=medium
 
   * calc_priority: include the patch number. The priority was major *
