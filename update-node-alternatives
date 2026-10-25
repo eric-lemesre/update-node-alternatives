@@ -27,6 +27,16 @@ readonly top="${NVM_DIR}/versions/node"
 readonly ALTBIN_DIR="/usr/local/bin"
 readonly node_info="$NVM_DIR/versions/node_binaries.info"
 
+# npm, npx, corepack et les binaires poses par 'npm install -g' sont des
+# scripts '#!/usr/bin/env node' : ils cherchent node dans le PATH. Sous
+# sudo, le PATH vient du secure_path de /etc/sudoers, qui peut ne pas
+# contenir /usr/local/bin (ou se trouve l'alternative node).
+case ":$PATH:" in
+    *":$ALTBIN_DIR:"*) ;;
+    *) PATH="$ALTBIN_DIR:$PATH" ;;
+esac
+export PATH
+
 declare -A NEW_BIN
 declare -A OLD_BIN
 
@@ -684,7 +694,8 @@ get_user_npm_prefix()
         if [ "$(id -un)" = "$user" ]; then
             prefix=$(npm config get prefix 2>/dev/null) || prefix=
         else
-            prefix=$(sudo -u "$user" -H npm config get prefix 2>/dev/null) || prefix=
+            # sudo remplace le PATH par secure_path : on transmet le notre
+            prefix=$(sudo -u "$user" -H env "PATH=$PATH" npm config get prefix 2>/dev/null) || prefix=
         fi
         case "$prefix" in
             ""|/usr|/usr/local|/usr/local/share/nvm/*) prefix= ;;
@@ -721,6 +732,24 @@ active_node_modules_dir()
     active_version=$(echo "$current" | grep -oP 'v[\d.]+')
     [ -n "$active_version" ] || return 1
     echo "$top/$active_version/lib/node_modules"
+}
+
+# Version active (vX.Y.Z) de l'alternative `node`, vide si aucune.
+active_node_version()
+{
+    update-alternatives --query node 2>/dev/null \
+        | grep '^Value:' | cut -d' ' -f2 | grep -oP 'v[\d.]+'
+}
+
+# Lance le npm d'une version donnee avec le node de cette meme version
+# (et non le node actif) : les modules natifs sont compiles pour la
+# bonne ABI, et npm fonctionne meme sans node dans le PATH.
+# Usage: npm_for <NODEBIN_DIR> <args...>
+npm_for()
+{
+    local bin_dir="$1"
+    shift
+    PATH="$bin_dir:$PATH" "$bin_dir/npm" "$@"
 }
 
 do_show_setting()
@@ -967,6 +996,12 @@ do_list()
 
 do_update()
 {
+    # --remove-all fait repasser le groupe en mode auto : on note le choix
+    # manuel courant pour le restaurer apres le re-enregistrement.
+    local prev_status prev_value
+    prev_status=$(update-alternatives --query node 2>/dev/null | grep '^Status:' | cut -d' ' -f2)
+    prev_value=$(update-alternatives --query node 2>/dev/null | grep '^Value:' | cut -d' ' -f2)
+
     vecho "Suppression des anciennes alternatives..."
     for binary in "${!OLD_BIN[@]}"; do
         update-alternatives --remove-all "$binary" 2>/dev/null || true
@@ -1028,6 +1063,15 @@ do_update()
     } > "$node_info"
     vecho "Binaries=$sorted_union"
 
+    if [ "$prev_status" = manual ] && [ -n "$prev_value" ]; then
+        if [ -x "$prev_value" ]; then
+            vecho "Restauration du choix manuel: $prev_value"
+            update-alternatives "${uaopts[@]}" --set node "$prev_value"
+        else
+            echo >&2 "$prog: la version manuelle $prev_value n'existe plus, retour en mode auto"
+        fi
+    fi
+
     echo "Alternatives mises a jour. Versions enregistrees:"
     update-alternatives --list node 2>/dev/null | while read -r path; do
         local v
@@ -1039,6 +1083,11 @@ do_update()
 do_set()
 {
     [ -n "$nodename" ] || { echo >&2 "$prog: nodename requis"; usage 1; }
+
+    # Version precedente (pour la migration des paquets globaux), lue
+    # avant do_update qui re-enregistre tout le groupe
+    local old_version
+    old_version=$(active_node_version)
 
     # S'assurer que les alternatives sont a jour
     do_update
@@ -1054,13 +1103,8 @@ do_set()
         exit 1
     fi
 
-    # Detecter la version precedente pour migration des paquets globaux
-    local old_node_bin
-    old_node_bin=$(update-alternatives --query node 2>/dev/null | grep '^Value:' | cut -d' ' -f2)
-    local old_version=""
-    if [ -n "$old_node_bin" ] && [ -x "$old_node_bin" ]; then
-        old_version=$(echo "$old_node_bin" | grep -oP 'v[\d.]+')
-    fi
+    # La version precedente a pu etre supprimee entre-temps
+    [ -z "$old_version" ] || [ -x "$top/$old_version/bin/node" ] || old_version=""
 
     vecho "Basculement vers $version..."
     update-alternatives "${uaopts[@]}" --set node "$NODEBIN_DIR/node"
@@ -1104,7 +1148,7 @@ migrate_global_packages()
     collect_global_packages "$from_version"
 
     if [ ${#pkg_names[@]} -eq 0 ]; then
-        vecho "Aucun paquet global a migrer depuis $from_version"
+        echo "  -> Aucun paquet global a migrer depuis $from_version (npm et corepack exclus)"
         return
     fi
 
@@ -1145,7 +1189,7 @@ migrate_global_packages()
         echo ":: Installation de ${#to_install[@]} paquet(s) dans $to_version..."
         vecho "  Paquets: ${to_install[*]}"
 
-        if "$to_bin/npm" install -g "${to_install[@]}"; then
+        if npm_for "$to_bin" install -g "${to_install[@]}"; then
             echo "  -> ${#to_install[@]} paquet(s) migre(s) avec succes"
         else
             echo >&2 "  -> ERREUR lors de l'installation de certains paquets"
