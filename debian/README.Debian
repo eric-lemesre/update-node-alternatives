@@ -55,3 +55,33 @@ ever installed. Wiping it on every `apt purge` would be surprising
 and destructive, so the package stores the admin's preference at
 install time (debian/templates: nvm-purge-on-purge) and re-confirms it
 at purge time before deleting anything. Defaults to "no".
+
+Maintainer scripts never write under /usr/local
+-----------------------------------------------
+
+Debian Policy 9.1.2 reserves /usr/local to the local administrator.
+The alternatives links (/usr/local/bin/node, npm, ...) and the Node.js
+store (/usr/local/share/nvm/) are only created or changed by the admin
+running update-node-alternatives. That is why an upgrade that changes
+the priority formula (0.4.2) does not re-register anything by itself:
+debian/NEWS asks the admin to run `update-node-alternatives --update`.
+
+Global npm packages (--install-packages, migration)
+---------------------------------------------------
+
+Global packages are reinstalled with the npm and node of the target
+version (never copied), so native modules are rebuilt for its ABI.
+Before installing, the engines.node range of each candidate is checked
+with the semver module bundled with that version's npm; incompatible
+packages start unchecked. npm then runs with --engine-strict, because
+the version it fetches from the registry may differ from the local copy
+that was checked.
+
+Known deviations from Debian main
+---------------------------------
+
+The package targets a personal APT repository. For Debian main it
+would still need to: unbundle nvm (Policy 4.13, embedded code copies;
+debian/copyright documents vendor/nvm/), and drop or move to contrib
+the optional debconf step that downloads a Node.js build from
+nodejs.org at install time (default: none).

@@ -1,0 +1,18 @@
+update-node-alternatives (0.5.0) unstable; urgency=medium
+
+  The maintainer scripts no longer re-register the Node.js alternatives
+  on upgrade: the links live under /usr/local/bin, which Debian Policy
+  9.1.2 reserves to the local administrator.
+
+  0.4.2 changed the priority formula to major * 1000000 + minor * 1000 +
+  patch. If you upgrade straight from 0.4.1 or older, apply the new
+  priorities once (the manual selection, if any, is kept):
+
+    sudo update-node-alternatives --update
+
+  New action --install-packages [--to <version>] offers the global npm
+  packages found in the other installed Node.js versions, checks their
+  engines.node constraint against the target version and installs the
+  selection with npm --engine-strict.
+
+ -- Eric Lemesre <eric.lemesre@gmail.com>  Sun, 25 Oct 2026 11:38:09 +0100

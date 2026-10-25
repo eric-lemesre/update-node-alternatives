@@ -79,6 +79,9 @@ Acciones NVM:
   --upgrade <version> [--from <ver>] Instalar, activar y migrar paquetes
   --reinstall-packages --from <ver> --to <ver>
                                      Migrar paquetes globales entre dos versiones
+  --install-packages [--to <ver>]    Instalar en <ver> (por defecto: la activa) paquetes
+                                       globales de las otras versiones, tras comprobar
+                                       engines.node
 
 Acciones update-alternatives:
   -l, --list                         Listar versiones instaladas
@@ -121,6 +124,10 @@ sudo update-node-alternatives --upgrade 22 --from v20.18.1
 
 # Migrar los paquetes globales entre dos versiones ya instaladas
 sudo update-node-alternatives --reinstall-packages --from v20.18.1 --to v22.14.0
+
+# Elegir paquetes globales de las otras versiones e instalarlos en la
+# versión activa (los rangos engines.node incompatibles quedan desmarcados)
+sudo update-node-alternatives --install-packages
 
 # Pasar al modo automático (gana la prioridad más alta)
 sudo update-node-alternatives --auto

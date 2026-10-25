@@ -134,6 +134,35 @@ to
 .I dst
 without installing a new Node.js version. Both versions must already be
 installed locally.
+.TP
+.BR \-\-install\-packages " [" \-\-to " " \fIversion\fR ]
+Collect the global npm packages of every other installed Node.js version,
+grouped by name (each entry lists the package versions found and the
+Node.js version holding them), and offer to install a selection into
+.I version
+(default: the active version). Packages already present in the target
+start unchecked. The newly installed binaries are then registered as
+alternatives, as with
+.BR \-\-update .
+.PP
+.B Compatibility check.
+Whenever packages are offered for a target version (this action,
+.BR \-\-set ,
+.B \-\-upgrade
+and
+.BR \-\-reinstall\-packages ),
+the
+.I engines.node
+range of each package is evaluated against the target with the semver
+module bundled with that version's npm. Incompatible packages start
+unchecked and are flagged; packages declaring no range are flagged as
+unchecked. Packages are reinstalled, never copied, with the target's npm
+running under the target's node and with
+.BR \-\-engine\-strict ,
+so native modules are rebuilt for its ABI and npm refuses a registry
+release whose range excludes the target. Each package is installed
+separately: one failure does not block the others, and the exit status
+is non-zero if any failed.
 .SS update-alternatives actions
 .TP
 .BR \-l ", " \-\-list
@@ -322,6 +351,13 @@ Upgrade from v20.18.1 to the latest v22, migrating global packages:
 .PP
 .RS 4
 sudo update-node-alternatives \-\-upgrade 22 \-\-from v20.18.1
+.RE
+.PP
+Install into the active version some global packages found in the other
+versions, after the engines.node check:
+.PP
+.RS 4
+sudo update-node-alternatives \-\-install\-packages
 .RE
 .PP
 Switch the active version without touching anything else:

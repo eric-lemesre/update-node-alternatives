@@ -99,6 +99,9 @@ debian/                            # Packaging Debian
 - `-p, --list-packages <version>` — Paquets npm globaux d'une version
 - `--upgrade <version> [--from <ver>]` — Install + set + migration paquets
 - `--reinstall-packages --from <ver> --to <ver>` — Migration seule des paquets
+- `--install-packages [--to <ver>]` — Recense les paquets globaux de toutes
+  les autres versions (regroupés par nom) et installe la sélection dans
+  `<ver>` (défaut : version active), après contrôle `engines.node` (0.5.0)
 
 ### Actions update-alternatives
 
@@ -152,11 +155,24 @@ debian/                            # Packaging Debian
 
 ## Migration des paquets globaux
 
-- Déclenchée automatiquement lors d'un `--set` ou `--upgrade`
+- Déclenchée automatiquement lors d'un `--set` ou `--upgrade` ; à la
+  demande via `--reinstall-packages` (une source) ou `--install-packages`
+  (toutes les autres versions, regroupées par nom)
+- Socle commun : `collect_candidates_from` / `collect_candidates_all`
+  remplissent `cand_names[]`, `cand_info[]`, `cand_json[]`, puis
+  `offer_and_install_packages` construit la checklist et installe
 - Détecte les paquets dans `lib/node_modules/` (scoped et non-scoped)
 - Exclut `npm` et `corepack` (fournis avec node)
-- Checklist interactive (whiptail/zenity/kdialog/readline) pour sélectionner
-  les paquets à migrer ; refuse silencieusement en `noninteractive`
+- `engines_check` évalue `engines.node` avec le node **et** le semver
+  (embarqué par npm) de la version cible : incompatible ⇒ décoché,
+  absent ⇒ coché « non vérifié », déjà présent dans la cible ⇒ décoché
+- Installation paquet par paquet via `npm_for <bin> install -g
+  --engine-strict` (réinstallation, jamais de copie : ABI native correcte),
+  puis `do_update` pour exposer les nouveaux binaires
+- Checklist interactive (whiptail/zenity/kdialog/readline) ; refuse
+  silencieusement en `noninteractive`
+- Les scripts mainteneur n'écrivent jamais sous `/usr/local` (Policy
+  9.1.2) : voir `debian/README.Debian` et `debian/NEWS`
 
 ## NVM vendoré
 
@@ -264,6 +280,7 @@ debian/                            # Packaging Debian
 
 - [ ] Support pnpm/yarn natif (`pnpm root -g`, `yarn global dir`) dans
       les actions promote/cleanup
+- [x] Contrôle `engines.node` à l'installation des paquets globaux (0.5.0)
 - [ ] Signaler les conflits de version Node entre paquet per-user et
       version system active
 - [x] Tests fonctionnels `tests/functional.sh` (0.4.1) : `--update`, `--set`,

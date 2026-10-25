@@ -11,16 +11,6 @@ set -e
 
 case "$1" in
     configure)
-        # 0.4.2 tient compte du patch dans la priorite : re-enregistrer les
-        # versions deja installees (le choix manuel est conserve).
-        if [ -n "$2" ] && dpkg --compare-versions "$2" lt 0.4.2 \
-           && update-alternatives --query node >/dev/null 2>&1; then
-            echo "Re-registering Node.js alternatives with the new priorities..."
-            if ! update-node-alternatives --update >/dev/null; then
-                echo >&2 "update-node-alternatives --update failed; rerun it by hand."
-            fi
-        fi
-
         db_get update-node-alternatives/default-version
         choice="$RET"
 

@@ -56,6 +56,9 @@ usage()
 	  --upgrade <version> [--from <ver>] Installer, activer et migrer les paquets
 	  --reinstall-packages --from <ver> --to <ver>
 	                                     Migrer les paquets globaux entre deux versions
+	  --install-packages [--to <ver>]    Installer dans <ver> (defaut: version active)
+	                                     des paquets globaux des autres versions,
+	                                     apres verification de engines.node
 
 	Actions (alternatives):
 	  -l, --list                         Lister les versions installees localement
@@ -95,6 +98,7 @@ usage()
 	  sudo $prog --upgrade 22 --from v20.18.1     # Upgrade 20->22 + migration paquets
 	  sudo $prog --remove v20.18.1                 # Supprimer Node 20
 	  sudo $prog --reinstall-packages --from v20.18.1 --to v22.14.0
+	  sudo $prog --install-packages                # Paquets des autres versions -> active
 	  sudo $prog --auto                            # Mode auto (plus haute priorite)
 	EOF
     exit "$rv"
@@ -140,6 +144,9 @@ while [ "$#" -gt 0 ]; do
       --reinstall-packages)
 	[ -z "$action" ] || usage 1
 	action=reinstall_packages;;
+      --install-packages)
+	[ -z "$action" ] || usage 1
+	action=install_packages;;
       --from)
 	shift
 	[ "$#" -gt 0 ] || usage 1
@@ -375,7 +382,7 @@ dialog_checklist()
             return 1 ;;
         readline|*)
             echo >&2 "$title"
-            echo >&2 "$text"
+            printf >&2 '%b\n' "$text"
             echo >&2
             local i=0
             local items=()
@@ -1141,65 +1148,197 @@ do_auto()
 # Migration des paquets globaux (interface debconf/whiptail)
 # ---------------------------------------------------------------------------
 
+# Verifie la contrainte engines.node d'un paquet pour une version cible,
+# avec le node et le semver (embarque par npm) de cette version.
+# Usage: engines_check <to_version> <package.json>
+# Affiche "ok:<plage>", "ko:<plage>" ou "unknown" (pas de contrainte ou
+# verification impossible).
+engines_check()
+{
+    local to_version="$1" pkg_json="$2"
+    local to_bin="$top/$to_version/bin"
+    local semver_dir="$top/$to_version/lib/node_modules/npm/node_modules/semver"
+    [ -x "$to_bin/node" ] && [ -d "$semver_dir" ] && [ -f "$pkg_json" ] \
+        || { echo unknown; return; }
+    # shellcheck disable=SC2016
+    local js='
+const [semverDir, pkgJson, ver] = process.argv.slice(1);
+let range;
+try { range = (require(pkgJson).engines || {}).node; } catch (e) {}
+if (!range) { console.log("unknown"); process.exit(0); }
+try {
+    const ok = require(semverDir).satisfies(ver, range, { includePrerelease: true });
+    console.log((ok ? "ok:" : "ko:") + range);
+} catch (e) { console.log("unknown"); }'
+    PATH="$to_bin:$PATH" "$to_bin/node" -e "$js" \
+        "$semver_dir" "$pkg_json" "${to_version#v}" 2>/dev/null || echo unknown
+}
+
+# Candidats a l'installation, remplis par les fonctions collect_* ci-dessous
+# puis consommes par offer_and_install_packages :
+#   cand_names[]  nom du paquet (scoped ou non)
+#   cand_info[]   versions trouvees, ex. "2026.5.7@v24.15.0 2026.4.15@v24.14.0"
+#   cand_json[]   package.json de reference (copie de la plus haute version de node)
+cand_names=()
+cand_info=()
+cand_json=()
+
+# Candidats = paquets globaux d'une seule version source.
+# Usage: collect_candidates_from <from_version>
+collect_candidates_from()
+{
+    local from_version="$1" i
+    cand_names=() cand_info=() cand_json=()
+    collect_global_packages "$from_version"
+    for i in "${!pkg_names[@]}"; do
+        cand_names+=("${pkg_names[$i]}")
+        cand_info+=("${pkg_versions[$i]}@$from_version")
+        cand_json+=("$top/$from_version/lib/node_modules/${pkg_names[$i]}/package.json")
+    done
+}
+
+# Candidats = union des paquets globaux de toutes les versions installees
+# sauf <to_version>, regroupes par nom. Les versions de node sont parcourues
+# de la plus haute a la plus basse : la premiere copie vue sert de reference
+# pour la verification engines.node.
+# Usage: collect_candidates_all <to_version>
+collect_candidates_all()
+{
+    local to_version="$1" v i name
+    local -A info=() json=()
+    cand_names=() cand_info=() cand_json=()
+    for v in $(list_installed_versions | sort -rV); do
+        [ "$v" = "$to_version" ] && continue
+        collect_global_packages "$v"
+        for i in "${!pkg_names[@]}"; do
+            name="${pkg_names[$i]}"
+            info[$name]="${info[$name]:+${info[$name]} }${pkg_versions[$i]}@$v"
+            [ -n "${json[$name]:-}" ] || json[$name]="$top/$v/lib/node_modules/$name/package.json"
+        done
+    done
+    while IFS= read -r name; do
+        [ -n "$name" ] || continue
+        cand_names+=("$name")
+        cand_info+=("${info[$name]}")
+        cand_json+=("${json[$name]}")
+    done < <(printf '%s\n' "${!info[@]}" | LC_ALL=C sort)
+}
+
+# Propose les candidats dans une checklist puis installe la selection dans
+# <to_version>. Etat initial de chaque case :
+#   ON  si engines.node est satisfait ou absent (marque "non verifie") ;
+#   OFF si la contrainte n'est pas satisfaite, ou si le paquet est deja
+#       present dans la version cible (reinstallation possible en cochant).
+# Usage: offer_and_install_packages <to_version> <titre> <texte>
+offer_and_install_packages()
+{
+    local to_version="$1" title="$2" text="$3"
+    local to_bin="$top/$to_version/bin"
+
+    if [ ${#cand_names[@]} -eq 0 ]; then
+        echo "  -> Aucun paquet global a installer dans $to_version (npm et corepack exclus)"
+        return 0
+    fi
+
+    local -A present=()
+    local i
+    collect_global_packages "$to_version"
+    for i in "${!pkg_names[@]}"; do
+        present[${pkg_names[$i]}]="${pkg_versions[$i]}"
+    done
+
+    local checklist_args=() n_ko=0
+    local name check state desc
+    for i in "${!cand_names[@]}"; do
+        name="${cand_names[$i]}"
+        check=$(engines_check "$to_version" "${cand_json[$i]}")
+        state=ON
+        desc="${cand_info[$i]}"
+        case "$check" in
+            ok:*) desc="$desc [compatible: node ${check#ok:}]" ;;
+            ko:*) desc="$desc [INCOMPATIBLE: node ${check#ko:}]"; state=OFF; n_ko=$((n_ko + 1)) ;;
+            *)    desc="$desc [engines.node non verifie]" ;;
+        esac
+        if [ -n "${present[$name]:-}" ]; then
+            desc="$desc (deja installe: ${present[$name]})"
+            state=OFF
+        fi
+        checklist_args+=("$name" "$desc" "$state")
+    done
+
+    [ "$n_ko" -eq 0 ] || text="$text\n\n$n_ko paquet(s) declare(nt) une version de node incompatible avec $to_version (decoche(s))."
+
+    echo
+    local selected
+    if ! selected=$(dialog_checklist "$title" "$text" "${checklist_args[@]}"); then
+        echo "  -> Installation annulee"
+        return 0
+    fi
+    local to_install=()
+    read -ra to_install <<< "$selected"
+    if [ ${#to_install[@]} -eq 0 ]; then
+        echo "  -> Installation ignoree (aucune selection)"
+        return 0
+    fi
+
+    # Un paquet a la fois : un echec (dont un refus --engine-strict, la
+    # version publiee pouvant differer de la copie locale verifiee) ne
+    # bloque pas les autres.
+    echo ":: Installation de ${#to_install[@]} paquet(s) dans $to_version..."
+    local ok=() failed=() pkg
+    for pkg in "${to_install[@]}"; do
+        echo "   - $pkg"
+        if npm_for "$to_bin" install -g --engine-strict "$pkg"; then
+            ok+=("$pkg")
+        else
+            failed+=("$pkg")
+        fi
+    done
+
+    if [ ${#ok[@]} -gt 0 ]; then
+        echo "  -> ${#ok[@]} paquet(s) installe(s): ${ok[*]}"
+        echo ":: Mise a jour des alternatives (nouveaux binaires)..."
+        do_update >/dev/null
+    fi
+    if [ ${#failed[@]} -gt 0 ]; then
+        echo >&2 "  -> ERREUR pour ${#failed[@]} paquet(s): ${failed[*]}"
+        echo >&2 "     (version de node incompatible ou echec npm, voir ci-dessus)"
+        exit 1
+    fi
+}
+
 migrate_global_packages()
 {
     local from_version="$1"
     local to_version="$2"
-    local to_bin="$top/$to_version/bin"
 
-    collect_global_packages "$from_version"
-
-    if [ ${#pkg_names[@]} -eq 0 ]; then
+    collect_candidates_from "$from_version"
+    if [ ${#cand_names[@]} -eq 0 ]; then
         echo "  -> Aucun paquet global a migrer depuis $from_version (npm et corepack exclus)"
-        return
+        return 0
     fi
-
-    # Construire les arguments pour le checklist
-    # Format: tag description on/off
-    local checklist_args=()
-    local i
-    for i in "${!pkg_names[@]}"; do
-        local tag="${pkg_names[$i]}"
-        local desc="${pkg_names[$i]}@${pkg_versions[$i]}"
-        if [ -n "${pkg_descriptions[$i]}" ]; then
-            desc="$desc - ${pkg_descriptions[$i]}"
-        fi
-        checklist_args+=("$tag" "$desc" "ON")
-    done
-
-    echo
-    local selected
-    if selected=$(dialog_checklist \
+    offer_and_install_packages "$to_version" \
         "Migration des paquets globaux" \
-        "Selectionnez les paquets a migrer de $from_version vers $to_version:" \
-        "${checklist_args[@]}"); then
+        "Selectionnez les paquets a migrer de $from_version vers $to_version:"
+}
 
-        if [ -z "$selected" ]; then
-            echo "  -> Migration ignoree (aucune selection)"
-            return
-        fi
-
-        # Convertir la selection en tableau
-        local to_install=()
-        read -ra to_install <<< "$selected"
-
-        if [ ${#to_install[@]} -eq 0 ]; then
-            echo "  -> Migration ignoree"
-            return
-        fi
-
-        echo ":: Installation de ${#to_install[@]} paquet(s) dans $to_version..."
-        vecho "  Paquets: ${to_install[*]}"
-
-        if npm_for "$to_bin" install -g "${to_install[@]}"; then
-            echo "  -> ${#to_install[@]} paquet(s) migre(s) avec succes"
-        else
-            echo >&2 "  -> ERREUR lors de l'installation de certains paquets"
+do_install_packages()
+{
+    local target="${to_version:-}"
+    if [ -z "$target" ]; then
+        target=$(active_node_version)
+        if [ -z "$target" ]; then
+            echo >&2 "$prog: aucune version active ; precisez --to <version>"
             exit 1
         fi
-    else
-        echo "  -> Migration annulee"
     fi
+    target=$(resolve_local "$target")
+
+    echo ":: Paquets globaux des autres versions installables dans $target"
+    collect_candidates_all "$target"
+    offer_and_install_packages "$target" \
+        "Installation de paquets globaux" \
+        "Paquets globaux trouves dans les autres versions de node (paquet@version-de-node).\nSelectionnez ceux a installer dans $target:"
 }
 
 # ---------------------------------------------------------------------------

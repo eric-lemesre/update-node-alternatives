@@ -13,7 +13,7 @@ _update_node_alternatives()
     fi
 
     local long_opts="--install --remove --list-remote --list-packages \
---upgrade --reinstall-packages --list --set --update --auto \
+--upgrade --reinstall-packages --install-packages --list --set --update --auto \
 --from --to --lts --verbose --frontend --no-dialog --help \
 --promote-user-globals --cleanup-user-globals"
     local short_opts="-i -r -R -p -l -s -u -a -v -h"
