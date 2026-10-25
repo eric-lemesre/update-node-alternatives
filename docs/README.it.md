@@ -26,7 +26,7 @@ semplice).
   `sudo npm install -g` (`ng`, `tsc`, `pnpm`, ...) siano esposti
   sotto `/usr/local/bin/`
 - Priorità calcolata automaticamente dalla versione di Node.js:
-  `major * 100 + minor` (ad es. `v22.14.0` → `2214`)
+  `major * 1000000 + minor * 1000 + patch` (ad es. `v22.14.0` → `22014000`)
 - Migrazione interattiva dei pacchetti npm globali tra versioni
   (checklist)
 - Promozione dei pacchetti `npm install -g` per-utente verso il

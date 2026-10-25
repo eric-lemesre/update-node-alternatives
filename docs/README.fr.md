@@ -22,8 +22,8 @@ L'interface interactive utilise `whiptail` (avec un repli sur
   en scannant `<version>/bin/`, ce qui permet d'exposer sous
   `/usr/local/bin/` les binaires déposés par `sudo npm install -g`
   (`ng`, `tsc`, `pnpm`, ...)
-- Priorité calculée automatiquement depuis la version : `majeur * 100 + mineur`
-  (ex. `v22.14.0` → `2214`)
+- Priorité calculée automatiquement depuis la version : `majeur * 1000000 + mineur * 1000 + patch`
+  (ex. `v22.14.0` → `22014000`)
 - Migration interactive des paquets npm globaux entre versions (checklist)
 - Promotion des paquets `npm install -g` per-user vers la couche
   system-wide (`--promote-user-globals`) et nettoyage des copies

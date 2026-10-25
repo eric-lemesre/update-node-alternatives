@@ -26,7 +26,7 @@ estilo debconf se proporciona mediante `whiptail` (con respaldo en
   por `sudo npm install -g` (`ng`, `tsc`, `pnpm`, ...) quedan
   expuestos bajo `/usr/local/bin/`
 - Prioridad calculada automáticamente a partir de la versión de
-  Node.js: `major * 100 + minor` (p. ej. `v22.14.0` → `2214`)
+  Node.js: `major * 1000000 + minor * 1000 + patch` (p. ej. `v22.14.0` → `22014000`)
 - Migración interactiva de paquetes npm globales entre versiones
   (checklist)
 - Promover los paquetes `npm install -g` por usuario a la capa de

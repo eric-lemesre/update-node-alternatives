@@ -106,6 +106,14 @@ out=$(una --update)
 check "--update : version manuelle disparue -> retour en auto avec message" \
     '[ "$(status)" = auto ] && grep -q "retour en mode auto" <<< "$out"'
 
+mkver v24.3.9 ""
+mkver v24.3.10 ""
+out=$(una --list)
+check "priorite : le patch compte (v24.3.10 -> 24003010)" \
+    'grep -qE "v24\.3\.10 +24003010 " <<< "$out"'
+una --auto >/dev/null
+check "--auto : v24.3.10 l'emporte sur v24.3.9 et v24.3.0" '[ "$(active)" = v24.3.10 ]'
+
 echo
 if [ "$failures" -eq 0 ]; then
     echo "Tous les tests passent."

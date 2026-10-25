@@ -552,14 +552,16 @@ load_nvm()
     . "$nvm_lib" --no-use
 }
 
-# Calcul de priorite a partir du numero de version
-# v22.14.0 -> 2214, v20.18.1 -> 2018, v24.5.0 -> 2405
+# Calcul de priorite a partir du numero de version, patch compris pour
+# departager deux versions d'une meme mineure en mode auto.
+# v22.14.0 -> 22014000, v22.22.2 -> 22022002, v24.5.10 -> 24005010
+# (reste dans l'entier 32 bits signe d'update-alternatives jusqu'a v2147)
 calc_priority()
 {
     local ver="${1#v}"
-    local major minor
-    IFS='.' read -r major minor _ <<< "$ver"
-    echo $(( major * 100 + minor ))
+    local major minor patch
+    IFS='.' read -r major minor patch _ <<< "$ver"
+    echo $(( 10#${major:-0} * 1000000 + 10#${minor:-0} * 1000 + 10#${patch:-0} ))
 }
 
 # Resout un alias NVM (22, lts/jod, etc.) vers la version exacte installee localement

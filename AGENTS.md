@@ -75,7 +75,8 @@ debian/                            # Packaging Debian
    `/usr/local/share/nvm/versions/`) trace l'union et le détail
    par version : `Binaries=node npm npx ...` (compat 0.3) +
    `Binaries.vX.Y.Z=npm npx ng tsc` (Phase 2 a).
-4. Priorité = `major * 100 + minor` (v22.14.0 → 2214). En mode `auto`, la
+4. Priorité = `major * 1000000 + minor * 1000 + patch` (v22.14.0 → 22014000).
+   Le patch départage deux versions d'une même mineure. En mode `auto`, la
    plus haute priorité gagne.
 5. `load_nvm()` cherche `nvm.sh` dans (par ordre) :
    `/usr/share/update-node-alternatives/nvm/nvm.sh` (paquet),

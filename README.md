@@ -21,8 +21,8 @@ a `dialog` or plain readline fallback).
 - `node` is the master link; the slaves are discovered dynamically by
   scanning `<version>/bin/`, so binaries deposited by `sudo npm install -g`
   (`ng`, `tsc`, `pnpm`, ...) are exposed under `/usr/local/bin/`
-- Priority auto-computed from the Node.js version: `major * 100 + minor`
-  (e.g. `v22.14.0` → `2214`)
+- Priority auto-computed from the Node.js version: `major * 1000000 + minor * 1000 + patch`
+  (e.g. `v22.14.0` → `22014000`)
 - Interactive migration of global npm packages between versions (checklist)
 - Promote per-user `npm install -g` packages into the system-wide layer
   (`--promote-user-globals`) and clean up the redundant per-user copies

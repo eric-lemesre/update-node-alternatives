@@ -25,7 +25,7 @@ readline).
   install -g` abgelegte Binärdateien (`ng`, `tsc`, `pnpm`, ...) unter
   `/usr/local/bin/` verfügbar werden
 - Priorität wird automatisch aus der Node.js-Version berechnet:
-  `major * 100 + minor` (z. B. `v22.14.0` → `2214`)
+  `major * 1000000 + minor * 1000 + patch` (z. B. `v22.14.0` → `22014000`)
 - Interaktive Migration globaler npm-Pakete zwischen Versionen
   (Checkliste)
 - Per-User-Pakete von `npm install -g` in die systemweite Schicht
